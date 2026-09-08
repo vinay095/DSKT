@@ -1,0 +1,32 @@
+@import 'tailwindcss';
+
+:root {
+  color-scheme: light;
+  font-family:
+    'IBM Plex Sans',
+    'Segoe UI',
+    sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
