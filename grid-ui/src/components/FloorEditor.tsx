@@ -22,9 +22,11 @@ import {
   initialCloseUpViewport,
   minZoomToFitFloor,
   screenToWorld,
+  worldToScreen,
   zoomAround,
 } from '../geometry/coordinates';
 import {
+  cellToWorldRect,
   cellsInWorldRect,
   getFloorBaseUnit,
   getGridLevel,
@@ -35,26 +37,41 @@ import {
 } from '../geometry/grid';
 import { snapPointToGrid, snapSize, snapToGrid } from '../geometry/snapping';
 import {
+  cloneEntity,
   createId,
   entitiesIntersectingRect,
   hitTestEntity,
   resizeEntity,
   translateEntity,
 } from '../geometry/entities';
-import { generateFloorMatrix, type FloorMatrix } from '../geometry/matrix';
+import { cellsToFootprint, footprintToOutline } from '../geometry/footprint';
+import {
+  generateFloorMatrix,
+  matrixToJson,
+  matrixToPlainText,
+  type FloorMatrix,
+} from '../geometry/matrix';
 import { useHistory } from '../hooks/useHistory';
 import { loadDraft, saveDraft, type DraftDocument } from '../lib/drafts';
 import { exportPdf, exportPng, exportSvg } from '../lib/export';
+import {
+  DEFAULT_ENTITY_LIBRARY,
+  colorForEntity,
+  nextCustomCode,
+  nextCustomColor,
+} from '../lib/library';
 import type { ResizeHandle } from './ResizeHandles';
 import FloorBoundary from './FloorBoundary';
 import Grid from './Grid';
 import CellHighlight from './CellHighlight';
 import EntitiesLayer from './EntitiesLayer';
 import SelectionMarquee from './SelectionMarquee';
+import SelectionActionMenu from './SelectionActionMenu';
 import ResizeHandles from './ResizeHandles';
 import EntityLibrary from './EntityLibrary';
 import PropertiesPanel from './PropertiesPanel';
 import Toolbar from './Toolbar';
+import HowToUseModal from './HowToUseModal';
 
 const ZOOM_FACTOR = 1.12;
 const MAX_ZOOM = 400;
@@ -97,6 +114,17 @@ type DragMode =
     }
   | null;
 
+function mergeCells(existing: CellRef[], extra: CellRef[], additive: boolean): CellRef[] {
+  if (!additive) return extra;
+  const map = new Map(existing.map((c) => [`${c.level}:${c.col}:${c.row}`, c]));
+  for (const c of extra) {
+    const key = `${c.level}:${c.col}:${c.row}`;
+    if (map.has(key)) map.delete(key);
+    else map.set(key, c);
+  }
+  return Array.from(map.values());
+}
+
 const FloorEditor: React.FC = () => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -107,24 +135,45 @@ const FloorEditor: React.FC = () => {
   const [showGrid, setShowGrid] = useState(true);
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [includeGridOnExport, setIncludeGridOnExport] = useState(true);
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [theme, setTheme] = useState<'dark' | 'light'>('light');
   const [tool, setTool] = useState<EditorTool>('select');
   const [placeItem, setPlaceItem] = useState<LibraryItem | null>(null);
   const [cursorWorld, setCursorWorld] = useState<Point>({ x: 0, y: 0 });
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectedCells, setSelectedCells] = useState<CellRef[]>([]);
   const [marqueeRect, setMarqueeRect] = useState<Rect | null>(null);
-  const [polygonDraft, setPolygonDraft] = useState<Point[]>([]);
   const [matrix, setMatrix] = useState<FloorMatrix | null>(null);
+  const [library, setLibrary] = useState<LibraryItem[]>(() =>
+    DEFAULT_ENTITY_LIBRARY.map((i) => ({ ...i })),
+  );
+  const [customLibrary, setCustomLibrary] = useState<LibraryItem[]>([]);
+  const [howToOpen, setHowToOpen] = useState(false);
+  const [spaceHeld, setSpaceHeld] = useState(false);
+  const [clipboard, setClipboard] = useState<Entity[]>([]);
 
-  const history = useHistory<Entity[]>([]);
-  const entities = history.present;
+  const {
+    present: entities,
+    set: setEntities,
+    replace: replaceEntities,
+    commitDrag,
+    undo,
+    redo,
+    reset: resetEntities,
+    canUndo,
+    canRedo,
+  } = useHistory<Entity[]>([], 5);
+
+  const undoRef = useRef(undo);
+  const redoRef = useRef(redo);
+  useEffect(() => {
+    undoRef.current = undo;
+    redoRef.current = redo;
+  }, [undo, redo]);
 
   const viewportRef = useRef(viewport);
-  const floorRef = useRef(floor);
   const entitiesRef = useRef(entities);
+  const floorRef = useRef(floor);
   const dragRef = useRef<DragMode>(null);
-  const [spaceHeld, setSpaceHeld] = useState(false);
   const pinchRef = useRef<{ dist: number; zoom: number } | null>(null);
   const movedRef = useRef(false);
 
@@ -132,17 +181,16 @@ const FloorEditor: React.FC = () => {
     viewportRef.current = viewport;
   }, [viewport]);
   useEffect(() => {
-    floorRef.current = floor;
-  }, [floor]);
-  useEffect(() => {
     entitiesRef.current = entities;
   }, [entities]);
+  useEffect(() => {
+    floorRef.current = floor;
+  }, [floor]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  // Measure + initial close-up camera
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -163,15 +211,35 @@ const FloorEditor: React.FC = () => {
   const snapSizeWorld = snapEnabled ? gridCellSize : 0;
   const minZoom = minZoomToFitFloor(floor, svgSize.width, svgSize.height);
 
+  const allLibrary = useMemo(() => [...library, ...customLibrary], [library, customLibrary]);
+
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const selectedEntities = useMemo(
     () => entities.filter((e) => selectedSet.has(e.id)),
     [entities, selectedSet],
   );
 
-  const hoveredCell: CellRef | null = useMemo(() => {
-    return worldToCell(cursorWorld, gridLevel, baseUnit);
-  }, [cursorWorld, gridLevel, baseUnit]);
+  const hoveredCell: CellRef | null = useMemo(
+    () => worldToCell(cursorWorld, gridLevel, baseUnit),
+    [cursorWorld, gridLevel, baseUnit],
+  );
+
+  const selectionMenuPos = useMemo(() => {
+    if (selectedCells.length === 0) return null;
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (const cell of selectedCells) {
+      const r = cellToWorldRect(cell, baseUnit);
+      minX = Math.min(minX, r.x);
+      maxX = Math.max(maxX, r.x + r.width);
+      minY = Math.min(minY, r.y);
+      maxY = Math.max(maxY, r.y + r.height);
+    }
+    const screen = worldToScreen({ x: (minX + maxX) / 2, y: maxY }, viewport);
+    return { x: screen.x, y: screen.y, world: { minX, maxX, minY, maxY } };
+  }, [selectedCells, baseUnit, viewport]);
 
   const applyZoom = useCallback(
     (factor: number, anchor: Point) => {
@@ -195,7 +263,6 @@ const FloorEditor: React.FC = () => {
     setViewport(fitFloorViewport(floor, svgSize.width, svgSize.height));
   }, [floor, svgSize]);
 
-  // Wheel zoom
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
@@ -203,24 +270,20 @@ const FloorEditor: React.FC = () => {
       e.preventDefault();
       const rect = svg.getBoundingClientRect();
       const cursor = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-      const factor = e.deltaY < 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR;
-      applyZoom(factor, cursor);
+      applyZoom(e.deltaY < 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR, cursor);
     };
     svg.addEventListener('wheel', onWheel, { passive: false });
     return () => svg.removeEventListener('wheel', onWheel);
   }, [applyZoom]);
 
-  // Pinch zoom
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
-
     const touchDist = (touches: TouchList) => {
       const a = touches[0];
       const b = touches[1];
       return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
     };
-
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 2) {
         pinchRef.current = { dist: touchDist(e.touches), zoom: viewportRef.current.zoom };
@@ -234,15 +297,12 @@ const FloorEditor: React.FC = () => {
         x: (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left,
         y: (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top,
       };
-      const dist = touchDist(e.touches);
-      const factor = dist / pinchRef.current.dist;
-      const desired = pinchRef.current.zoom * factor;
+      const desired = pinchRef.current.zoom * (touchDist(e.touches) / pinchRef.current.dist);
       setViewport((v) => clampZoomAround(v, desired, mid, minZoom, MAX_ZOOM));
     };
     const onTouchEnd = () => {
       pinchRef.current = null;
     };
-
     svg.addEventListener('touchstart', onTouchStart, { passive: true });
     svg.addEventListener('touchmove', onTouchMove, { passive: false });
     svg.addEventListener('touchend', onTouchEnd);
@@ -261,13 +321,6 @@ const FloorEditor: React.FC = () => {
     );
   }, []);
 
-  const commitEntities = useCallback(
-    (next: Entity[]) => {
-      history.set(next);
-    },
-    [history],
-  );
-
   const placeEntityAt = useCallback(
     (item: LibraryItem, world: Point) => {
       let x = world.x - item.defaultWidth / 2;
@@ -277,6 +330,60 @@ const FloorEditor: React.FC = () => {
         x = snapped.x;
         y = snapped.y;
       }
+
+      if (item.kind === 'text') {
+        const text =
+          window.prompt('Enter label text', item.label === 'Text block' ? 'Label' : item.label) ??
+          '';
+        if (!text.trim()) {
+          setPlaceItem(null);
+          setTool('select');
+          return;
+        }
+        const fontSize = item.defaultFontSize ?? 0.6;
+        const entity: Entity = {
+          id: createId('text'),
+          kind: 'text',
+          code: 0,
+          x,
+          y,
+          width: Math.max(item.defaultWidth, text.length * fontSize * 0.55),
+          height: Math.max(item.defaultHeight, fontSize * 1.4),
+          label: text.trim(),
+          color: item.color,
+          fontSize,
+        };
+        setEntities([...entitiesRef.current, entity]);
+        setSelectedIds([entity.id]);
+        setSelectedCells([]);
+        setPlaceItem(null);
+        setTool('select');
+        return;
+      }
+
+      if (item.footprint && item.footprint.length > 0) {
+        const outline = footprintToOutline(x, y, item.footprint);
+        const entity: Entity = {
+          id: createId('polygon'),
+          kind: 'polygon',
+          code: item.code,
+          x,
+          y,
+          width: item.defaultWidth,
+          height: item.defaultHeight,
+          footprint: item.footprint.map((f) => ({ ...f })),
+          points: outline,
+          label: item.label,
+          color: item.color,
+        };
+        setEntities([...entitiesRef.current, entity]);
+        setSelectedIds([entity.id]);
+        setSelectedCells([]);
+        setPlaceItem(null);
+        setTool('select');
+        return;
+      }
+
       const entity: Entity = {
         id: createId(item.kind),
         kind: item.kind,
@@ -286,48 +393,116 @@ const FloorEditor: React.FC = () => {
         width: item.defaultWidth,
         height: item.defaultHeight,
         label: item.label,
+        color: item.color,
       };
-      commitEntities([...entitiesRef.current, entity]);
+      setEntities([...entitiesRef.current, entity]);
       setSelectedIds([entity.id]);
       setSelectedCells([]);
       setPlaceItem(null);
       setTool('select');
     },
-    [commitEntities, snapSizeWorld],
+    [setEntities, snapSizeWorld],
   );
 
-  const closePolygon = useCallback(() => {
-    if (polygonDraft.length < 3) {
-      setPolygonDraft([]);
-      return;
-    }
-    const xs = polygonDraft.map((p) => p.x);
-    const ys = polygonDraft.map((p) => p.y);
-    const minX = Math.min(...xs);
-    const minY = Math.min(...ys);
-    const maxX = Math.max(...xs);
-    const maxY = Math.max(...ys);
-    const entity: Entity = {
-      id: createId('polygon'),
-      kind: 'polygon',
-      code: 8,
-      x: minX,
-      y: minY,
-      width: maxX - minX,
-      height: maxY - minY,
-      points: polygonDraft,
-      label: 'Polygon',
-    };
-    commitEntities([...entitiesRef.current, entity]);
-    setSelectedIds([entity.id]);
-    setPolygonDraft([]);
-    setTool('select');
-  }, [polygonDraft, commitEntities]);
+  const handleMarkAsPolygon = useCallback(() => {
+    if (selectedCells.length === 0) return;
+    const built = cellsToFootprint(selectedCells, baseUnit);
+    if (!built) return;
 
-  // Keyboard shortcuts
+    const code = nextCustomCode();
+    const color = nextCustomColor(customLibrary.length);
+    const label = `Polygon ${customLibrary.length + 1}`;
+    const id = createId('custom-poly');
+    const outline = footprintToOutline(built.origin.x, built.origin.y, built.footprint);
+
+    const entity: Entity = {
+      id,
+      kind: 'polygon',
+      code,
+      x: built.origin.x,
+      y: built.origin.y,
+      width: built.width,
+      height: built.height,
+      footprint: built.footprint,
+      points: outline,
+      label,
+      color,
+    };
+    const libItem: LibraryItem = {
+      id: `lib-${id}`,
+      kind: 'custom',
+      label,
+      code,
+      defaultWidth: built.width,
+      defaultHeight: built.height,
+      color,
+      fromSelection: true,
+      footprint: built.footprint.map((f) => ({ ...f })),
+    };
+    setEntities([...entitiesRef.current, entity]);
+    setCustomLibrary((prev) => [...prev, libItem]);
+    setSelectedCells([]);
+    setSelectedIds([id]);
+  }, [selectedCells, baseUnit, customLibrary.length, setEntities]);
+
+  const handleCopy = useCallback(() => {
+    if (selectedIds.length === 0) return;
+    const idSet = new Set(selectedIds);
+    const copies = entitiesRef.current
+      .filter((e) => idSet.has(e.id))
+      .map((e) => cloneEntity(e, e.id));
+    setClipboard(copies);
+  }, [selectedIds]);
+
+  const handlePaste = useCallback(() => {
+    if (clipboard.length === 0) return;
+
+    let anchorX = 0;
+    let anchorY = 0;
+    if (selectedCells.length > 0) {
+      const cell = selectedCells[selectedCells.length - 1];
+      const r = cellToWorldRect(cell, baseUnit);
+      anchorX = r.x;
+      anchorY = r.y;
+    } else {
+      anchorX = Math.round(cursorWorld.x);
+      anchorY = Math.round(cursorWorld.y);
+      if (snapSizeWorld > 0) {
+        const s = snapPointToGrid(anchorX, anchorY, snapSizeWorld);
+        anchorX = s.x;
+        anchorY = s.y;
+      }
+    }
+
+    // Align clipboard group so its AABB min corner lands on the paste anchor
+    let minX = Infinity;
+    let minY = Infinity;
+    for (const e of clipboard) {
+      minX = Math.min(minX, e.x);
+      minY = Math.min(minY, e.y);
+    }
+    const dx = anchorX - minX;
+    const dy = anchorY - minY;
+    const pasted = clipboard.map((e) => {
+      const id = createId(e.kind);
+      return translateEntity(cloneEntity(e, id), dx, dy);
+    });
+    setEntities([...entitiesRef.current, ...pasted]);
+    setSelectedIds(pasted.map((p) => p.id));
+    setSelectedCells([]);
+  }, [clipboard, selectedCells, baseUnit, cursorWorld, snapSizeWorld, setEntities]);
+
+  const selectedIdsRef = useRef(selectedIds);
+  useEffect(() => {
+    selectedIdsRef.current = selectedIds;
+  }, [selectedIds]);
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const meta = e.ctrlKey || e.metaKey;
+      const tag = (e.target as HTMLElement)?.tagName;
+      const typing = tag === 'INPUT' || tag === 'TEXTAREA';
+
       if (e.code === 'Space' && !e.repeat) {
         e.preventDefault();
         setSpaceHeld(true);
@@ -335,32 +510,65 @@ const FloorEditor: React.FC = () => {
       if (e.key === 'Escape') {
         setSelectedIds([]);
         setSelectedCells([]);
-        setPolygonDraft([]);
         setPlaceItem(null);
         setTool('select');
         setMarqueeRect(null);
         dragRef.current = null;
       }
-      if (e.key === 'Enter' && tool === 'polygon') {
-        e.preventDefault();
-        closePolygon();
-      }
       if (meta && e.key.toLowerCase() === 'z') {
         e.preventDefault();
-        if (e.shiftKey) history.redo();
-        else history.undo();
+        if (e.shiftKey) redoRef.current();
+        else undoRef.current();
       }
       if (meta && e.key.toLowerCase() === 'y') {
         e.preventDefault();
-        history.redo();
+        redoRef.current();
       }
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.length > 0) {
-        const tag = (e.target as HTMLElement)?.tagName;
-        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (meta && e.key.toLowerCase() === 'c') {
+        if (typing) return;
         e.preventDefault();
-        const drop = new Set(selectedIds);
-        commitEntities(entitiesRef.current.filter((ent) => !drop.has(ent.id)));
+        handleCopy();
+      }
+      if (meta && e.key.toLowerCase() === 'v') {
+        if (typing) return;
+        e.preventDefault();
+        handlePaste();
+      }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIdsRef.current.length > 0) {
+        if (typing) return;
+        e.preventDefault();
+        const drop = new Set(selectedIdsRef.current);
+        setEntities(entitiesRef.current.filter((ent) => !drop.has(ent.id)));
         setSelectedIds([]);
+      }
+
+      // Arrow-key nudge for selected entities
+      if (
+        !typing &&
+        !meta &&
+        selectedIdsRef.current.length > 0 &&
+        (e.key === 'ArrowUp' ||
+          e.key === 'ArrowDown' ||
+          e.key === 'ArrowLeft' ||
+          e.key === 'ArrowRight')
+      ) {
+        e.preventDefault();
+        const step = snapSizeWorld > 0 ? snapSizeWorld : floorRef.current.a;
+        const large = e.shiftKey ? 4 : 1;
+        const delta = step * large;
+        let dx = 0;
+        let dy = 0;
+        if (e.key === 'ArrowLeft') dx = -delta;
+        if (e.key === 'ArrowRight') dx = delta;
+        if (e.key === 'ArrowDown') dy = -delta; // world Y-up
+        if (e.key === 'ArrowUp') dy = delta;
+
+        const idSet = new Set(selectedIdsRef.current);
+        setEntities(
+          entitiesRef.current.map((ent) =>
+            idSet.has(ent.id) ? translateEntity(ent, dx, dy) : ent,
+          ),
+        );
       }
     };
     const onKeyUp = (e: KeyboardEvent) => {
@@ -372,7 +580,7 @@ const FloorEditor: React.FC = () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [tool, closePolygon, history, selectedIds, commitEntities]);
+  }, [setEntities, handleCopy, handlePaste, snapSizeWorld]);
 
   const applyResize = (
     origin: Entity,
@@ -389,7 +597,6 @@ const FloorEditor: React.FC = () => {
       nx = snapToGrid(nx, snap);
       ny = snapToGrid(ny, snap);
     }
-
     if (handle.includes('e')) width = Math.max(snap || 0.05, nx - x);
     if (handle.includes('w')) {
       const newX = Math.min(nx, right - (snap || 0.05));
@@ -412,7 +619,7 @@ const FloorEditor: React.FC = () => {
   const handleEntityPointerDown = (id: string, e: React.MouseEvent) => {
     if (e.button !== 0) return;
     e.stopPropagation();
-    if (tool === 'polygon' || placeItem) return;
+    if (placeItem) return;
 
     const world = clientToWorld(e.clientX, e.clientY);
     let ids = selectedIds;
@@ -431,7 +638,10 @@ const FloorEditor: React.FC = () => {
     dragRef.current = {
       type: 'move',
       startWorld: world,
-      originEntities: entitiesRef.current.map((ent) => ({ ...ent, points: ent.points?.map((p) => ({ ...p })) })),
+      originEntities: entitiesRef.current.map((ent) => ({
+        ...ent,
+        points: ent.points?.map((p) => ({ ...p })),
+      })),
       ids,
     };
   };
@@ -456,21 +666,8 @@ const FloorEditor: React.FC = () => {
     const world = clientToWorld(e.clientX, e.clientY);
     movedRef.current = false;
 
-    // Place mode
     if (placeItem && e.button === 0 && !e.ctrlKey && !e.metaKey) {
       placeEntityAt(placeItem, world);
-      return;
-    }
-
-    // Polygon tool
-    if (tool === 'polygon' && e.button === 0) {
-      let p = world;
-      if (snapSizeWorld > 0) p = snapPointToGrid(p.x, p.y, snapSizeWorld);
-      if (e.detail === 2) {
-        closePolygon();
-        return;
-      }
-      setPolygonDraft((pts) => [...pts, p]);
       return;
     }
 
@@ -502,7 +699,6 @@ const FloorEditor: React.FC = () => {
         worldAtStart: world,
         shift: e.shiftKey,
       };
-      return;
     }
   };
 
@@ -541,7 +737,7 @@ const FloorEditor: React.FC = () => {
         dy = snapToGrid(dy, snapSizeWorld);
       }
       const idSet = new Set(drag.ids);
-      history.replace(
+      replaceEntities(
         drag.originEntities.map((ent) =>
           idSet.has(ent.id) ? translateEntity(ent, dx, dy) : ent,
         ),
@@ -553,7 +749,7 @@ const FloorEditor: React.FC = () => {
       const origin = drag.originEntities.find((ent) => ent.id === drag.entityId);
       if (!origin) return;
       const next = applyResize(origin, drag.handle, world, snapSizeWorld);
-      history.replace(
+      replaceEntities(
         drag.originEntities.map((ent) => (ent.id === next.id ? next : ent)),
       );
     }
@@ -565,10 +761,9 @@ const FloorEditor: React.FC = () => {
 
     if (drag?.type === 'pan') {
       if (!movedRef.current) {
-        // Treat as click: select cell under cursor
-        if (!drag.shift) setSelectedIds([]);
         const cell = worldToCell(drag.worldAtStart, gridLevel, baseUnit);
-        setSelectedCells(drag.shift ? [...selectedCells, cell] : [cell]);
+        if (!drag.shift) setSelectedIds([]);
+        setSelectedCells((prev) => mergeCells(prev, [cell], drag.shift));
       }
       return;
     }
@@ -588,36 +783,44 @@ const FloorEditor: React.FC = () => {
         setSelectedCells([]);
       } else {
         const cells = cellsInWorldRect(rect, gridLevel, baseUnit);
-        setSelectedCells((prev) =>
-          drag.additive
-            ? Array.from(
-                new Map(
-                  [...prev, ...cells].map((c) => [`${c.level}:${c.col}:${c.row}`, c]),
-                ).values(),
-              )
-            : cells,
-        );
+        setSelectedCells((prev) => mergeCells(prev, cells, drag.additive));
         if (!drag.additive) setSelectedIds([]);
       }
       return;
     }
 
     if ((drag?.type === 'move' || drag?.type === 'resize') && movedRef.current) {
-      history.commit(drag.originEntities, entitiesRef.current.map((ent) => ({ ...ent })));
+      commitDrag(drag.originEntities);
     }
   };
 
   const handleUpdateSelected = (patch: Partial<Entity>) => {
     if (selectedIds.length !== 1) return;
     const id = selectedIds[0];
-    commitEntities(
-      entities.map((e) => (e.id === id ? { ...e, ...patch } : e)),
-    );
+    setEntities(entities.map((e) => (e.id === id ? { ...e, ...patch } : e)));
   };
 
-  const handleSaveDraft = () => {
-    const name = window.prompt('Draft name', `Draft ${new Date().toLocaleString()}`);
-    if (!name) return;
+  const handleLibraryColor = (id: string, color: string) => {
+    setLibrary((prev) => prev.map((i) => (i.id === id ? { ...i, color } : i)));
+    setCustomLibrary((prev) => prev.map((i) => (i.id === id ? { ...i, color } : i)));
+    // Update placed entities that match this library kind/code colour source
+    const item = allLibrary.find((i) => i.id === id);
+    if (item) {
+      setEntities(
+        entitiesRef.current.map((e) =>
+          e.kind === item.kind && e.code === item.code && !e.color
+            ? { ...e, color }
+            : e.color === item.color
+              ? { ...e, color }
+              : e.label === item.label
+                ? { ...e, color }
+                : e,
+        ),
+      );
+    }
+  };
+
+  const handleSaveDraft = (name: string) => {
     const doc: DraftDocument = {
       version: 1,
       name,
@@ -636,7 +839,7 @@ const FloorEditor: React.FC = () => {
     if (!doc) return;
     setFloor(doc.floor);
     setViewport(doc.viewport);
-    history.reset(doc.entities);
+    resetEntities(doc.entities);
     setSelectedIds([]);
     setSelectedCells([]);
     if (doc.theme) setTheme(doc.theme);
@@ -646,9 +849,9 @@ const FloorEditor: React.FC = () => {
     const svg = svgRef.current;
     if (!svg) return;
     const stamp = Date.now();
-    if (kind === 'svg') exportSvg(svg, `floor-${stamp}.svg`, includeGridOnExport);
-    if (kind === 'png') await exportPng(svg, `floor-${stamp}.png`, includeGridOnExport);
-    if (kind === 'pdf') await exportPdf(svg, `floor-${stamp}.pdf`, includeGridOnExport);
+    if (kind === 'svg') exportSvg(svg, floor, `floor-${stamp}.svg`, includeGridOnExport);
+    if (kind === 'png') await exportPng(svg, floor, `floor-${stamp}.png`, includeGridOnExport);
+    if (kind === 'pdf') await exportPdf(svg, floor, `floor-${stamp}.pdf`, includeGridOnExport);
   };
 
   const axisLabels = useMemo(() => {
@@ -664,13 +867,12 @@ const FloorEditor: React.FC = () => {
   }, [viewport, svgSize, baseUnit]);
 
   const cursorStyle =
-    tool === 'pan' || spaceHeld
-      ? 'grab'
-      : placeItem || tool === 'polygon'
-        ? 'crosshair'
-        : 'default';
+    tool === 'pan' || spaceHeld ? 'grab' : placeItem ? 'crosshair' : 'default';
 
   const singleSelected = selectedEntities.length === 1 ? selectedEntities[0] : null;
+
+  const colorFor = (entity: Entity) =>
+    colorForEntity(entity.kind, allLibrary, entity.color);
 
   return (
     <div className="editor-layout">
@@ -681,12 +883,12 @@ const FloorEditor: React.FC = () => {
         snapEnabled={snapEnabled}
         includeGridOnExport={includeGridOnExport}
         theme={theme}
-        canUndo={history.canUndo}
-        canRedo={history.canRedo}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        canPaste={clipboard.length > 0}
         onTool={(t) => {
           setTool(t);
           setPlaceItem(null);
-          if (t !== 'polygon') setPolygonDraft([]);
         }}
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
@@ -695,8 +897,11 @@ const FloorEditor: React.FC = () => {
         onToggleSnap={() => setSnapEnabled((s) => !s)}
         onToggleExportGrid={() => setIncludeGridOnExport((g) => !g)}
         onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
-        onUndo={history.undo}
-        onRedo={history.redo}
+        onUndo={undo}
+        onRedo={redo}
+        onCopy={handleCopy}
+        onPaste={handlePaste}
+        onHowToUse={() => setHowToOpen(true)}
         onSaveDraft={handleSaveDraft}
         onLoadDraft={handleLoadDraft}
         onExportPng={() => void runExport('png')}
@@ -706,18 +911,14 @@ const FloorEditor: React.FC = () => {
 
       <div className="editor-body">
         <EntityLibrary
-          activeKind={placeItem?.kind ?? null}
+          items={library}
+          customItems={customLibrary}
+          activeId={placeItem?.id ?? null}
           onSelect={(item) => {
             setPlaceItem(item);
             setTool('place');
-            setPolygonDraft([]);
           }}
-          onPolygonTool={() => {
-            setTool('polygon');
-            setPlaceItem(null);
-            setPolygonDraft([]);
-          }}
-          polygonActive={tool === 'polygon'}
+          onColorChange={handleLibraryColor}
         />
 
         <div className="editor-canvas-container" ref={containerRef}>
@@ -767,6 +968,7 @@ const FloorEditor: React.FC = () => {
               <EntitiesLayer
                 entities={entities}
                 selectedIds={selectedSet}
+                colorFor={colorFor}
                 onEntityPointerDown={handleEntityPointerDown}
               />
               {singleSelected && (
@@ -775,20 +977,6 @@ const FloorEditor: React.FC = () => {
                   zoom={viewport.zoom}
                   onHandleDown={handleHandleDown}
                 />
-              )}
-              {polygonDraft.length > 0 && (
-                <g id="polygon-draft" pointerEvents="none">
-                  <polyline
-                    points={polygonDraft.map((p) => `${p.x},${p.y}`).join(' ')}
-                    fill="none"
-                    stroke="#ef4444"
-                    strokeWidth={1.5}
-                    vectorEffect="non-scaling-stroke"
-                  />
-                  {polygonDraft.map((p, i) => (
-                    <circle key={i} cx={p.x} cy={p.y} r={4 / viewport.zoom} fill="#ef4444" />
-                  ))}
-                </g>
               )}
             </g>
 
@@ -806,7 +994,7 @@ const FloorEditor: React.FC = () => {
                 if (sx < 20 || sx > svgSize.width - 10) return null;
                 return (
                   <text key={`lx-${wx}`} x={sx} y={sy} textAnchor="middle">
-                    {Number(wx.toFixed(2))}
+                    {Math.round(wx)}
                   </text>
                 );
               })}
@@ -816,16 +1004,26 @@ const FloorEditor: React.FC = () => {
                 if (sy < 10 || sy > svgSize.height - 4) return null;
                 return (
                   <text key={`ly-${wy}`} x={sx} y={sy} textAnchor="end" dominantBaseline="middle">
-                    {Number(wy.toFixed(2))}
+                    {Math.round(wy)}
                   </text>
                 );
               })}
             </g>
           </svg>
 
+          {selectionMenuPos && (
+            <SelectionActionMenu
+              x={selectionMenuPos.x}
+              y={selectionMenuPos.y}
+              cellCount={selectedCells.length}
+              onMarkPolygon={handleMarkAsPolygon}
+              onClear={() => setSelectedCells([])}
+            />
+          )}
+
           <div className="status-bar">
             <span>
-              ({cursorWorld.x.toFixed(2)}, {cursorWorld.y.toFixed(2)}) m
+              ({Math.round(cursorWorld.x)}, {Math.round(cursorWorld.y)}) m
             </span>
             <span>
               a={floor.a} m · cell {gridCellSize.toFixed(2)} m · L{gridLevel}
@@ -839,7 +1037,7 @@ const FloorEditor: React.FC = () => {
                   : 'Nothing selected'}
             </span>
             <span className="status-hint">
-              Drag empty area to pan · Ctrl+drag select · Scroll/pinch zoom · Del delete
+              Drag empty to pan · Arrows nudge · Shift+arrow ×4 · Ctrl+drag select · Del delete
             </span>
           </div>
         </div>
@@ -850,13 +1048,19 @@ const FloorEditor: React.FC = () => {
           selected={selectedEntities}
           onUpdateSelected={handleUpdateSelected}
           matrix={matrix}
-          onGenerateMatrix={() => setMatrix(generateFloorMatrix(entities, floor.a))}
+          onGenerateMatrix={() => setMatrix(generateFloorMatrix(entities, floor))}
           onCopyMatrix={() => {
             if (!matrix) return;
-            void navigator.clipboard.writeText(JSON.stringify(matrix, null, 2));
+            void navigator.clipboard.writeText(matrixToPlainText(matrix));
+          }}
+          onCopyMatrixJson={() => {
+            if (!matrix) return;
+            void navigator.clipboard.writeText(matrixToJson(matrix));
           }}
         />
       </div>
+
+      <HowToUseModal open={howToOpen} onClose={() => setHowToOpen(false)} />
     </div>
   );
 };

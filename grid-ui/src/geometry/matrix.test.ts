@@ -1,15 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { generateFloorMatrix } from './matrix';
-import type { Entity } from '../types/geometry';
+import { generateFloorMatrix, matrixToJson } from './matrix';
+import type { Entity, FloorConfig } from '../types/geometry';
+
+const floor6: FloorConfig = { width: 6, height: 6, a: 1 };
 
 describe('generateFloorMatrix', () => {
-  it('returns empty matrix for no entities', () => {
-    const m = generateFloorMatrix([], 0.25);
-    expect(m.rows).toBe(0);
-    expect(m.cols).toBe(0);
+  it('covers the full floor with zeros when empty', () => {
+    const m = generateFloorMatrix([], floor6);
+    expect(m.rows).toBe(6);
+    expect(m.cols).toBe(6);
+    expect(m.matrix.flat().every((v) => v === 0)).toBe(true);
   });
 
-  it('stamps entity codes into the AABB grid', () => {
+  it('places a 4×4 workstation with zeros in the unused floor cells', () => {
     const entities: Entity[] = [
       {
         id: 'w1',
@@ -17,51 +20,51 @@ describe('generateFloorMatrix', () => {
         code: 1,
         x: 0,
         y: 0,
-        width: 0.5,
-        height: 0.5,
-      },
-      {
-        id: 'p1',
-        kind: 'plant',
-        code: 2,
-        x: 1,
-        y: 0,
-        width: 0.25,
-        height: 0.25,
+        width: 4,
+        height: 4,
       },
     ];
-    const m = generateFloorMatrix(entities, 0.25);
-    expect(m.cellSize).toBe(0.25);
-    expect(m.cols).toBeGreaterThan(0);
-    expect(m.rows).toBeGreaterThan(0);
-    // First entity covers 2×2 cells at origin
-    expect(m.data[0][0]).toBe(1);
-    expect(m.data[0][1]).toBe(1);
-    // Plant at x=1 → col offset 4 from minCol 0
-    expect(m.data[0][4]).toBe(2);
+    const m = generateFloorMatrix(entities, floor6);
+    expect(m.rows).toBe(6);
+    expect(m.cols).toBe(6);
+    // Row 0 is top of floor (world y=5..6) → zeros
+    expect(m.matrix[0]).toEqual([0, 0, 0, 0, 0, 0]);
+    // Bottom-left (low world Y) should be 1s - last 4 rows, first 4 cols
+    expect(m.matrix[5].slice(0, 4)).toEqual([1, 1, 1, 1]);
+    expect(m.matrix[5][4]).toBe(0);
+    expect(m.matrix[2][0]).toBe(1);
+    expect(m.matrix[1][0]).toBe(0);
   });
 
-  it('rasterizes polygons by cell centers', () => {
+  it('puts workstation bottom-left and plant top-right visually', () => {
+    const floor: FloorConfig = { width: 5, height: 5, a: 1 };
     const entities: Entity[] = [
-      {
-        id: 'poly',
-        kind: 'polygon',
-        code: 8,
-        x: 0,
-        y: 0,
-        width: 1,
-        height: 1,
-        points: [
-          { x: 0, y: 0 },
-          { x: 1, y: 0 },
-          { x: 1, y: 1 },
-          { x: 0, y: 1 },
-        ],
-      },
+      { id: 'w', kind: 'workstation', code: 1, x: 0, y: 0, width: 2, height: 2 },
+      { id: 'p', kind: 'plant', code: 2, x: 3, y: 3, width: 2, height: 2 },
     ];
-    const m = generateFloorMatrix(entities, 0.5);
-    expect(m.rows).toBe(2);
-    expect(m.cols).toBe(2);
-    expect(m.data.flat().every((v) => v === 8)).toBe(true);
+    const m = generateFloorMatrix(entities, floor);
+    // Top-right of matrix (row 0, last cols) = plant (high Y)
+    expect(m.matrix[0][3]).toBe(2);
+    expect(m.matrix[0][4]).toBe(2);
+    // Bottom-left of matrix (last row, first cols) = workstation
+    expect(m.matrix[4][0]).toBe(1);
+    expect(m.matrix[4][1]).toBe(1);
+    // Empty corner
+    expect(m.matrix[0][0]).toBe(0);
+    expect(m.matrix[4][4]).toBe(0);
+  });
+
+  it('exports clean JSON with matrix field', () => {
+    const m = generateFloorMatrix([], { width: 2, height: 2, a: 1 });
+    const json = JSON.parse(matrixToJson(m));
+    expect(json).toEqual({
+      cellSize: 1,
+      rows: 2,
+      cols: 2,
+      matrix: [
+        [0, 0],
+        [0, 0],
+      ],
+    });
   });
 });

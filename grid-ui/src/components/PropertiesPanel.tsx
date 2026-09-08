@@ -10,6 +10,7 @@ interface PropertiesPanelProps {
   matrix: FloorMatrix | null;
   onGenerateMatrix: () => void;
   onCopyMatrix: () => void;
+  onCopyMatrixJson: () => void;
 }
 
 const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
@@ -20,6 +21,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   matrix,
   onGenerateMatrix,
   onCopyMatrix,
+  onCopyMatrixJson,
 }) => {
   const single = selected.length === 1 ? selected[0] : null;
 
@@ -73,22 +75,59 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         {single && (
           <>
             <label className="prop-field">
-              <span>Label</span>
+              <span>Label / text</span>
               <input
                 type="text"
                 value={single.label ?? ''}
                 onChange={(e) => onUpdateSelected({ label: e.target.value })}
               />
             </label>
+            {single.kind !== 'text' && (
+              <label className="prop-field">
+                <span>Code</span>
+                <input
+                  type="number"
+                  value={single.code}
+                  onChange={(e) => onUpdateSelected({ code: Number(e.target.value) || 0 })}
+                />
+              </label>
+            )}
             <label className="prop-field">
-              <span>Code</span>
+              <span>Colour</span>
               <input
-                type="number"
-                value={single.code}
-                onChange={(e) => onUpdateSelected({ code: Number(e.target.value) || 0 })}
+                type="color"
+                value={single.color ?? '#94a3b8'}
+                onChange={(e) => onUpdateSelected({ color: e.target.value })}
               />
             </label>
-            {single.kind !== 'polygon' && (
+            {single.kind === 'text' ? (
+              <label className="prop-field">
+                <span>Font size</span>
+                <input
+                  type="number"
+                  min={0.1}
+                  step={0.05}
+                  value={single.fontSize ?? 0.5}
+                  onChange={(e) =>
+                    onUpdateSelected({ fontSize: Math.max(0.1, Number(e.target.value) || 0.5) })
+                  }
+                />
+              </label>
+            ) : (
+              <label className="prop-field">
+                <span>Label font size</span>
+                <input
+                  type="range"
+                  min={0.3}
+                  max={3}
+                  step={0.1}
+                  value={single.fontSize ?? 1}
+                  onChange={(e) => onUpdateSelected({ fontSize: Number(e.target.value) })}
+                />
+                <span className="panel-hint mono">{(single.fontSize ?? 1).toFixed(1)}×</span>
+              </label>
+            )}
+            {single.kind !== 'polygon' && single.kind !== 'text' && (
               <>
                 <label className="prop-field">
                   <span>Width (m)</span>
@@ -117,7 +156,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               </>
             )}
             <p className="panel-hint mono">
-              ({single.x.toFixed(2)}, {single.y.toFixed(2)})
+              ({Math.round(single.x)}, {Math.round(single.y)})
             </p>
           </>
         )}
@@ -128,6 +167,9 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
 
       <section className="prop-section">
         <h3>Matrix</h3>
+        <p className="panel-hint">
+          Covers the full floor at cell size a. Row 0 is the top of the floor. Empty = 0.
+        </p>
         <div className="prop-actions">
           <button type="button" className="toolbar-btn" onClick={onGenerateMatrix}>
             Generate
@@ -138,12 +180,20 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             onClick={onCopyMatrix}
             disabled={!matrix || matrix.rows === 0}
           >
+            Copy matrix
+          </button>
+          <button
+            type="button"
+            className="toolbar-btn"
+            onClick={onCopyMatrixJson}
+            disabled={!matrix || matrix.rows === 0}
+          >
             Copy JSON
           </button>
         </div>
         {matrix && matrix.rows > 0 && (
           <pre className="matrix-preview">
-            {matrix.data.map((row) => row.join(' ')).join('\n')}
+            {matrix.matrix.map((row) => row.join(' ')).join('\n')}
           </pre>
         )}
       </section>

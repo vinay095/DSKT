@@ -16,6 +16,7 @@ dist-ssr
 .vscode/*
 !.vscode/extensions.json
 .idea
+.cursor/*
 .DS_Store
 *.suo
 *.ntvs*
@@ -27,3 +28,4 @@ dist-ssr
 README.md
 implementation_plan.md
 PROMPT.md
+prompt.md

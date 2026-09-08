@@ -1,53 +1,66 @@
 import React from 'react';
 import type { LibraryItem } from '../types/geometry';
-import { ENTITY_LIBRARY } from '../lib/library';
 
 interface EntityLibraryProps {
-  activeKind: LibraryItem['kind'] | null;
+  items: LibraryItem[];
+  customItems: LibraryItem[];
+  activeId: string | null;
   onSelect: (item: LibraryItem) => void;
-  onPolygonTool: () => void;
-  polygonActive: boolean;
+  onColorChange: (id: string, color: string) => void;
 }
 
 const EntityLibrary: React.FC<EntityLibraryProps> = ({
-  activeKind,
+  items,
+  customItems,
+  activeId,
   onSelect,
-  onPolygonTool,
-  polygonActive,
+  onColorChange,
 }) => {
+  const renderItem = (item: LibraryItem) => (
+    <div
+      key={item.id}
+      className={`library-item ${activeId === item.id ? 'active' : ''}`}
+    >
+      <button
+        type="button"
+        className="library-item-main"
+        onClick={() => onSelect(item)}
+      >
+        <span className="library-swatch" style={{ background: item.color }} />
+            <span className="library-meta">
+              <strong>{item.label}</strong>
+              <small>
+                {item.kind === 'text'
+                  ? 'Label only · no matrix code'
+                  : `${item.defaultWidth.toFixed(2)}×${item.defaultHeight.toFixed(2)} m · code ${item.code}`}
+              </small>
+            </span>
+      </button>
+      <label className="library-color" title="Change colour" onClick={(e) => e.stopPropagation()}>
+        <input
+          type="color"
+          value={item.color}
+          onChange={(e) => onColorChange(item.id, e.target.value)}
+          aria-label={`Colour for ${item.label}`}
+        />
+      </label>
+    </div>
+  );
+
   return (
     <aside className="side-panel left-panel" aria-label="Entity library">
       <div className="panel-header">Library</div>
       <p className="panel-hint">Click an item, then click the canvas to place.</p>
-      <div className="library-list">
-        {ENTITY_LIBRARY.map((item) => (
-          <button
-            key={item.kind}
-            type="button"
-            className={`library-item ${activeKind === item.kind ? 'active' : ''}`}
-            onClick={() => onSelect(item)}
-          >
-            <span className="library-swatch" style={{ background: item.color }} />
-            <span className="library-meta">
-              <strong>{item.label}</strong>
-              <small>
-                {item.defaultWidth}×{item.defaultHeight} m · code {item.code}
-              </small>
-            </span>
-          </button>
-        ))}
-        <button
-          type="button"
-          className={`library-item ${polygonActive ? 'active' : ''}`}
-          onClick={onPolygonTool}
-        >
-          <span className="library-swatch" style={{ background: '#ef4444' }} />
-          <span className="library-meta">
-            <strong>Polygon</strong>
-            <small>Click vertices · Enter / double-click to close</small>
-          </span>
-        </button>
-      </div>
+      <div className="library-list">{items.map(renderItem)}</div>
+
+      {customItems.length > 0 && (
+        <>
+          <div className="panel-header" style={{ marginTop: 16 }}>
+            Custom shapes
+          </div>
+          <div className="library-list">{customItems.map(renderItem)}</div>
+        </>
+      )}
     </aside>
   );
 };

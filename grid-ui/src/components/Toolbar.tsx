@@ -12,6 +12,7 @@ interface ToolbarProps {
   theme: 'dark' | 'light';
   canUndo: boolean;
   canRedo: boolean;
+  canPaste: boolean;
   onTool: (tool: EditorTool) => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
@@ -22,7 +23,10 @@ interface ToolbarProps {
   onToggleTheme: () => void;
   onUndo: () => void;
   onRedo: () => void;
-  onSaveDraft: () => void;
+  onCopy: () => void;
+  onPaste: () => void;
+  onHowToUse: () => void;
+  onSaveDraft: (name: string) => void;
   onLoadDraft: (name: string) => void;
   onExportPng: () => void;
   onExportSvg: () => void;
@@ -38,6 +42,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
   theme,
   canUndo,
   canRedo,
+  canPaste,
   onTool,
   onZoomIn,
   onZoomOut,
@@ -48,6 +53,9 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onToggleTheme,
   onUndo,
   onRedo,
+  onCopy,
+  onPaste,
+  onHowToUse,
   onSaveDraft,
   onLoadDraft,
   onExportPng,
@@ -56,7 +64,10 @@ const Toolbar: React.FC<ToolbarProps> = ({
 }) => {
   const [draftOpen, setDraftOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [draftName, setDraftName] = useState('');
+  const [draftsVersion, setDraftsVersion] = useState(0);
   const drafts = draftOpen ? listDrafts() : [];
+  void draftsVersion;
   const zoomPercent = Math.round((viewport.zoom / 40) * 100);
 
   return (
@@ -106,6 +117,18 @@ const Toolbar: React.FC<ToolbarProps> = ({
         >
           ↷
         </button>
+        <button type="button" className="toolbar-btn" onClick={onCopy} title="Copy (Ctrl+C)">
+          Copy
+        </button>
+        <button
+          type="button"
+          className="toolbar-btn"
+          onClick={onPaste}
+          disabled={!canPaste}
+          title="Paste into selected cell (Ctrl+V)"
+        >
+          Paste
+        </button>
       </div>
 
       <div className="toolbar-divider" />
@@ -120,7 +143,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <button type="button" className="toolbar-btn icon-btn" onClick={onZoomIn} title="Zoom in">
           +
         </button>
-        <button type="button" className="toolbar-btn" onClick={onFitFloor} title="Fit floor (max zoom out)">
+        <button type="button" className="toolbar-btn" onClick={onFitFloor} title="Fit floor">
           Fit
         </button>
       </div>
@@ -147,6 +170,10 @@ const Toolbar: React.FC<ToolbarProps> = ({
       <div className="toolbar-spacer" />
 
       <div className="toolbar-group toolbar-menus">
+        <button type="button" className="toolbar-btn" onClick={onHowToUse}>
+          How to use
+        </button>
+
         <div className="menu-wrap">
           <button
             type="button"
@@ -154,23 +181,43 @@ const Toolbar: React.FC<ToolbarProps> = ({
             onClick={() => {
               setDraftOpen((o) => !o);
               setExportOpen(false);
+              setDraftsVersion((v) => v + 1);
             }}
           >
             Drafts
           </button>
           {draftOpen && (
-            <div className="menu-dropdown">
-              <button
-                type="button"
-                className="menu-item"
-                onClick={() => {
-                  onSaveDraft();
-                  setDraftOpen(false);
-                }}
-              >
-                Save draft…
-              </button>
-              {drafts.length === 0 && <div className="menu-empty">No saved drafts</div>}
+            <div className="menu-dropdown draft-menu">
+              <div className="draft-save-form" onMouseDown={(e) => e.stopPropagation()}>
+                <input
+                  type="text"
+                  placeholder="Draft name"
+                  value={draftName}
+                  onChange={(e) => setDraftName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && draftName.trim()) {
+                      onSaveDraft(draftName.trim());
+                      setDraftName('');
+                      setDraftsVersion((v) => v + 1);
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className="toolbar-btn"
+                  disabled={!draftName.trim()}
+                  onClick={() => {
+                    if (!draftName.trim()) return;
+                    onSaveDraft(draftName.trim());
+                    setDraftName('');
+                    setDraftsVersion((v) => v + 1);
+                  }}
+                >
+                  Save draft
+                </button>
+              </div>
+              <div className="menu-divider" />
+              {drafts.length === 0 && <div className="menu-empty">No saved drafts yet</div>}
               {drafts.map((d) => (
                 <button
                   key={d.name}
@@ -202,6 +249,9 @@ const Toolbar: React.FC<ToolbarProps> = ({
           </button>
           {exportOpen && (
             <div className="menu-dropdown">
+              <p className="menu-empty" style={{ paddingBottom: 4 }}>
+                Exports the full floor area
+              </p>
               <label className="menu-check">
                 <input
                   type="checkbox"

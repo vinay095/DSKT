@@ -10,15 +10,12 @@ export type Rect = {
   height: number;
 };
 
-/** Working floor config. `a` is the finest cell size in meters. */
 export type FloorConfig = {
   width: number;
   height: number;
-  /** Finest grid cell size (meters). Coarser levels = a × 4^n. */
   a: number;
 };
 
-/** @deprecated Prefer Entity — kept for test-object compatibility during migration. */
 export type FloorObjectType = 'RECTANGLE';
 
 export type FloorObject = {
@@ -36,37 +33,53 @@ export type EntityKind =
   | 'meeting_room'
   | 'cafeteria'
   | 'custom'
-  | 'polygon';
+  | 'polygon'
+  | 'text';
+
+export type FootprintRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
 
 export type Entity = {
   id: string;
   kind: EntityKind;
-  /** Integer code stamped into the occupancy matrix. */
+  /** Integer code stamped into the occupancy matrix (0 for text). */
   code: number;
   x: number;
   y: number;
   width: number;
   height: number;
   rotation?: number;
-  /** Closed polygon vertices in world meters (kind === 'polygon'). */
   points?: Point[];
+  /** Exact cell rectangles relative to (x,y) - preserves irregular polygon shapes. */
+  footprint?: FootprintRect[];
   label?: string;
+  color?: string;
+  /** Label font scale for shapes (1 = default). Absolute meters for text entities. */
+  fontSize?: number;
 };
 
-/** Address of a single cell within the bounded hierarchical grid. */
 export type CellRef = {
   level: number;
   col: number;
   row: number;
 };
 
-export type EditorTool = 'select' | 'pan' | 'polygon' | 'place';
+export type EditorTool = 'select' | 'pan' | 'place';
 
 export type LibraryItem = {
+  id: string;
   kind: Exclude<EntityKind, 'polygon'>;
   label: string;
   code: number;
   defaultWidth: number;
   defaultHeight: number;
   color: string;
+  fromSelection?: boolean;
+  /** Relative footprint for custom shapes created from cell selection. */
+  footprint?: FootprintRect[];
+  defaultFontSize?: number;
 };

@@ -59,7 +59,6 @@ const CURSOR: Record<ResizeHandle, string> = {
 };
 
 const ResizeHandles: React.FC<ResizeHandlesProps> = ({ entity, zoom, onHandleDown }) => {
-  if (entity.kind === 'polygon') return null;
   const b = entityBounds(entity);
   const size = 8 / zoom;
 
