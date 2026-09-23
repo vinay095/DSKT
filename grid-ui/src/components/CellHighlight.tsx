@@ -1,30 +1,34 @@
 import React from 'react';
-import type { CellRef } from '../types/geometry';
-import { cellToWorldRect } from '../geometry/grid';
+import type { CellRef, FloorConfig } from '../types/geometry';
+import { cellToWorldRect, isCellOnFloor } from '../geometry/grid';
 
 interface CellHighlightProps {
   hoveredCell: CellRef | null;
   selectedCells: CellRef[];
+  floor: FloorConfig;
   a: number;
 }
 
 const CellHighlight: React.FC<CellHighlightProps> = ({
   hoveredCell,
   selectedCells,
+  floor,
   a,
 }) => {
   const selectedKeys = new Set(
     selectedCells.map((c) => `${c.level}:${c.col}:${c.row}`),
   );
 
+  const hoverOnFloor =
+    hoveredCell &&
+    isCellOnFloor(hoveredCell, floor) &&
+    !selectedKeys.has(`${hoveredCell.level}:${hoveredCell.col}:${hoveredCell.row}`);
+
   return (
     <g id="cell-highlight" pointerEvents="none">
-      {hoveredCell &&
-        hoveredCell.col >= 0 &&
-        hoveredCell.row >= 0 &&
-        !selectedKeys.has(`${hoveredCell.level}:${hoveredCell.col}:${hoveredCell.row}`) &&
+      {hoverOnFloor &&
         (() => {
-          const r = cellToWorldRect(hoveredCell, a);
+          const r = cellToWorldRect(hoveredCell!, a);
           return (
             <rect
               x={r.x}
@@ -38,7 +42,7 @@ const CellHighlight: React.FC<CellHighlightProps> = ({
           );
         })()}
 
-      {selectedCells.map((cell) => {
+      {selectedCells.filter((c) => isCellOnFloor(c, floor)).map((cell) => {
         const r = cellToWorldRect(cell, a);
         return (
           <rect

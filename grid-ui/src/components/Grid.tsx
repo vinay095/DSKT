@@ -38,6 +38,8 @@ function kindFor(level: NamedGridLevel): Tier['kind'] {
 /**
  * Multi-tier grid with fading next-finer lines so cells visibly split
  * while zooming: 2a → a → a/4 → a/16.
+ * Drawn across the visible first quadrant (including outside the floor);
+ * selection/placement stay clamped to the floor separately.
  */
 const Grid: React.FC<GridProps> = ({
   floor,
@@ -70,12 +72,7 @@ const Grid: React.FC<GridProps> = ({
       const px = levelCellSize(lvl, a) * viewport.zoom;
       let opacity = 1;
       if (lvl > current) {
-        // Next-finer: fade in early so subdivisions are visible before "snapping"
         opacity = Math.min(1, Math.max(0.28, px / FULL_PX));
-      } else if (lvl === current) {
-        opacity = 1;
-      } else {
-        opacity = 1;
       }
       if (opacity < 0.05) continue;
       const size = levelCellSize(lvl, a);

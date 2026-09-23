@@ -33,20 +33,22 @@ import {
   zoomAround,
 } from '../geometry/coordinates';
 import {
-  catalogToFinestSize,
+  catalogToFinestSizeAtLevel,
   cellToWorldRect,
   cellsInWorldRect,
   FINEST_PER_A,
-  FINEST_PER_PLACE,
+  finestPerLevelCell,
   floorFinestCols,
   floorFinestRows,
   getGridLevel,
   getVisibleWorldBounds,
+  isCellOnFloor,
   levelCellSize,
   worldRectFromPoints,
   worldToCell,
   worldToFinestCell,
-  worldToPlacementFinest,
+  worldToLevelFinest,
+  type NamedGridLevel,
 } from '../geometry/grid';
 import { snapPointToGrid, snapToGrid } from '../geometry/snapping';
 import {
@@ -62,14 +64,24 @@ import {
 } from '../geometry/entities';
 import {
   cellsToRelativeFinest,
-  cellsToSvgPath,
 } from '../geometry/footprint';
+import {
+  cellsToOutline,
+  compactFromCells,
+  expandRegionCells,
+  finestCellInRegion,
+  hydratePolygonEntity,
+  outlineToSvgPath,
+  pointInOutline,
+  scalePolygonTemplate,
+  splitIntoConnectedComponents,
+} from '../geometry/shapeStorage';
 import { useHistory } from '../hooks/useHistory';
 import {
   downloadFloorJson,
   floorDocumentToJson,
   loadDraft,
-  normalizeUnusableRegions,
+  normalizeDocument,
   saveDraft,
   type FloorDocument,
 } from '../lib/drafts';
@@ -85,6 +97,7 @@ import FloorBoundary from './FloorBoundary';
 import Grid from './Grid';
 import CellHighlight from './CellHighlight';
 import EntitiesLayer from './EntitiesLayer';
+import PlacePreview from './PlacePreview';
 import ZonesLayer from './ZonesLayer';
 import OutsideFloorOverlay from './OutsideFloorOverlay';
 import UnusableLayer from './UnusableLayer';
@@ -107,7 +120,7 @@ const CLICK_PX = 4;
 const DEFAULT_FLOOR: FloorConfig = {
   cols: 128,
   rows: 128,
-  a: 0.25,
+  a: 1,
 };
 
 const ZONE_COLORS = [
@@ -285,7 +298,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
   const a = floor.a;
   const gridLevel = getGridLevel(viewport.zoom, a);
   const gridCellSize = levelCellSize(gridLevel, a);
-  const placementSize = levelCellSize(1, a);
+  const placementSize = gridCellSize;
   const finestSize = a / FINEST_PER_A;
   const snapSizeWorld = snapEnabled ? placementSize : 0;
   const minZoom = minZoomToFitFloor(floor, svgSize.width, svgSize.height);
@@ -303,9 +316,9 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
 
   const hoveredCell: CellRef | null = useMemo(() => {
     const cell = worldToCell(cursorWorld, gridLevel, a);
-    if (cell.col < 0 || cell.row < 0) return null;
+    if (!isCellOnFloor(cell, floor)) return null;
     return cell;
-  }, [cursorWorld, gridLevel, a]);
+  }, [cursorWorld, gridLevel, a, floor]);
 
   const selectionMenuPos = useMemo(() => {
     if (selectedCells.length === 0) return null;
@@ -321,8 +334,12 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
       maxY = Math.max(maxY, r.y + r.height);
     }
     const screen = worldToScreen({ x: (minX + maxX) / 2, y: maxY }, viewport);
-    return { x: screen.x, y: screen.y };
-  }, [selectedCells, a, viewport]);
+    // Keep a ~340px wrapped menu on-canvas (menu is transform-centered on x)
+    const half = 170;
+    const x = Math.min(svgSize.width - half - 8, Math.max(half + 8, screen.x));
+    const y = Math.max(96, Math.min(svgSize.height - 8, screen.y));
+    return { x, y };
+  }, [selectedCells, a, viewport, svgSize.width, svgSize.height]);
 
   const entityMenuPos = useMemo(() => {
     if (!showEntityMenu || selectedEntities.length !== 1) return null;
@@ -362,14 +379,6 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
     [svgSize.width, svgSize.height],
   );
 
-  const unusableSet = useMemo(() => {
-    const s = new Set<string>();
-    for (const r of unusableRegions) {
-      for (const c of r.cells) s.add(`${c.col},${c.row}`);
-    }
-    return s;
-  }, [unusableRegions]);
-
   const cellBlocked = useCallback(
     (col: number, row: number) => {
       if (
@@ -380,14 +389,23 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
       ) {
         return true;
       }
-      return unusableSet.has(`${col},${row}`);
+      return unusableRegions.some((r) => finestCellInRegion(col, row, r));
     },
-    [floor, unusableSet],
+    [floor, unusableRegions],
   );
 
   const entityFitsFloor = useCallback(
     (ent: Entity) => {
-      if (isPolygonEntity(ent) && ent.cells) {
+      if (isPolygonEntity(ent) && ent.outline && ent.outline.length >= 3) {
+        for (let r = 0; r < ent.heightCells; r++) {
+          for (let c = 0; c < ent.widthCells; c++) {
+            if (!pointInOutline({ x: c + 0.5, y: r + 0.5 }, ent.outline)) continue;
+            if (cellBlocked(ent.origin.col + c, ent.origin.row + r)) return false;
+          }
+        }
+        return true;
+      }
+      if (isPolygonEntity(ent) && ent.cells && ent.cells.length > 0) {
         return ent.cells.every(
           (c) => !cellBlocked(ent.origin.col + c.col, ent.origin.row + c.row),
         );
@@ -484,10 +502,10 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
 
   const placeEntityAt = useCallback(
     async (item: LibraryItem, world: Point) => {
-      let cell = worldToPlacementFinest(world, a);
+      let cell = worldToLevelFinest(world, gridLevel, a);
       if (snapSizeWorld > 0) {
         const snapped = snapPointToGrid(world.x, world.y, snapSizeWorld);
-        cell = worldToPlacementFinest(snapped, a);
+        cell = worldToLevelFinest(snapped, gridLevel, a);
       }
       cell = { col: Math.max(0, cell.col), row: Math.max(0, cell.row) };
 
@@ -516,9 +534,10 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
           return;
         }
         const fontSize = item.defaultFontSize ?? 0.6;
-        const dims = catalogToFinestSize(
+        const dims = catalogToFinestSizeAtLevel(
           Math.max(item.widthCells, Math.ceil(textVal.length * 0.4)),
           item.heightCells,
+          gridLevel,
         );
         finishPlace({
           objectId: createId('text'),
@@ -531,28 +550,44 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
           label: textVal.trim(),
           color: item.color,
           fontSize,
+          placeLevel: gridLevel,
         });
         return;
       }
 
-      if (item.cells && item.cells.length > 0) {
-        finishPlace({
+      if (item.cells?.length || item.outline?.length) {
+        const authoredLevel = (item.placeLevel ?? 1) as NamedGridLevel;
+        const scaled = scalePolygonTemplate(
+          {
+            widthCells: item.widthCells,
+            heightCells: item.heightCells,
+            cells: item.cells,
+            outline: item.outline,
+            svgPath: item.svgPath,
+          },
+          authoredLevel,
+          gridLevel,
+          (lvl) => finestPerLevelCell(lvl as NamedGridLevel),
+        );
+        const hydrated = hydratePolygonEntity({
           objectId: createId('polygon'),
           category: item.category,
           elementType: item.elementType,
           origin: cell,
-          widthCells: item.widthCells,
-          heightCells: item.heightCells,
+          widthCells: scaled.widthCells,
+          heightCells: scaled.heightCells,
           rotation: 0,
-          cells: item.cells.map((c) => ({ ...c })),
-          svgPath: item.svgPath ?? cellsToSvgPath(item.cells),
+          outline: scaled.outline?.map((v) => ({ ...v })),
+          svgPath: scaled.svgPath,
           label: item.label,
           color: item.color,
+          placeLevel: gridLevel,
         });
+        finishPlace(hydrated);
         return;
       }
 
-      const dims = catalogToFinestSize(item.widthCells, item.heightCells);
+      const dims = catalogToFinestSizeAtLevel(item.widthCells, item.heightCells, gridLevel);
       finishPlace({
         objectId: createId(item.elementType),
         category: item.category,
@@ -564,9 +599,10 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
         svg: item.svg,
         label: item.label,
         color: item.color,
+        placeLevel: gridLevel,
       });
     },
-    [setEntities, snapSizeWorld, a, entityFitsFloor, showToast, requestPrompt],
+    [setEntities, snapSizeWorld, a, gridLevel, entityFitsFloor, showToast, requestPrompt],
   );
 
   const handleMarkAsPolygon = useCallback(() => {
@@ -582,7 +618,8 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
       const color = nextCustomColor(customLibrary.length);
       const objectId = createId('poly');
       const elementType = `polygon_${customLibrary.length + 1}`;
-      const svgPath = cellsToSvgPath(polygonPending.cells);
+      const outline = cellsToOutline(polygonPending.cells);
+      const svgPath = outlineToSvgPath(outline);
 
       const entity: Entity = {
         objectId,
@@ -591,10 +628,11 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
         origin: polygonPending.origin,
         widthCells: polygonPending.widthCells,
         heightCells: polygonPending.heightCells,
-        cells: polygonPending.cells,
+        outline,
         svgPath,
         label: opts.label,
         color,
+        placeLevel: gridLevel,
       };
 
       const libItem: CustomLibraryEntry = {
@@ -605,9 +643,10 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
         widthCells: polygonPending.widthCells,
         heightCells: polygonPending.heightCells,
         color,
-        cells: polygonPending.cells.map((c) => ({ ...c })),
+        outline: outline.map((v) => ({ ...v })),
         svgPath,
         fromSelection: true,
+        placeLevel: gridLevel,
       };
 
       setEntities([...entitiesRef.current, entity]);
@@ -617,7 +656,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
       setPolygonPending(null);
       setShowEntityMenu(true);
     },
-    [polygonPending, customLibrary.length, setEntities],
+    [polygonPending, customLibrary.length, setEntities, gridLevel],
   );
 
   const handleCopy = useCallback(() => {
@@ -675,6 +714,20 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
     setClipboard(hit.map((e) => cloneEntity(e, e.objectId)));
   }, [selectedCells, a, showToast]);
 
+  const handleDeleteEntitiesInSelection = useCallback(() => {
+    if (selectedCells.length === 0) return;
+    const finest = selectedCellsToFinest(selectedCells, a);
+    const hit = entitiesInCells(entitiesRef.current, finest, a);
+    if (hit.length === 0) {
+      showToast('No entities in the selection.');
+      return;
+    }
+    const drop = new Set(hit.map((e) => e.objectId));
+    setEntities(entitiesRef.current.filter((ent) => !drop.has(ent.objectId)));
+    setSelectedCells([]);
+    setShowEntityMenu(false);
+  }, [selectedCells, a, setEntities, showToast]);
+
   const handleMarkZone = useCallback(async () => {
     if (selectedCells.length === 0) return;
     const label = await requestPrompt({
@@ -684,11 +737,13 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
     });
     if (!label?.trim()) return;
     const finest = selectedCellsToFinest(selectedCells, a);
+    const compact = compactFromCells(finest);
+    if (!compact) return;
     const zone: FloorZone = {
       id: createId('zone'),
       label: label.trim(),
-      cells: finest,
       color: ZONE_COLORS[zones.length % ZONE_COLORS.length],
+      ...compact,
     };
     setZones((prev) => [...prev, zone]);
     setSelectedCells([]);
@@ -709,10 +764,12 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
       placeholder: 'pillar',
       confirmLabel: 'Mark',
     });
+    const compact = compactFromCells(finest);
+    if (!compact) return;
     const region: UnusableRegion = {
       id: createId('unusable'),
       label: (label ?? '').trim(),
-      cells: finest,
+      ...compact,
     };
     setUnusableRegions((prev) => [...prev, region]);
     setSelectedCells([]);
@@ -723,7 +780,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
     const finest = selectedCellsToFinest(selectedCells, a);
     const keys = new Set(finest.map((c) => `${c.col},${c.row}`));
     const hit = unusableRegions.filter((r) =>
-      r.cells.some((c) => keys.has(`${c.col},${c.row}`)),
+      expandRegionCells(r).some((c) => keys.has(`${c.col},${c.row}`)),
     );
     if (hit.length === 0) {
       showToast('No unusable cells in the selection.');
@@ -742,23 +799,44 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
     );
   }, [selectedCells, a, unusableRegions, requestPrompt, showToast]);
 
-  const handleClearUnusable = useCallback(() => {
-    if (selectedCells.length === 0) {
-      setUnusableRegions([]);
-      return;
-    }
+  const handleMarkUsable = useCallback(() => {
+    if (selectedCells.length === 0) return;
     const finest = selectedCellsToFinest(selectedCells, a);
     const drop = new Set(finest.map((c) => `${c.col},${c.row}`));
     setUnusableRegions((prev) =>
-      prev
-        .map((r) => ({
-          ...r,
-          cells: r.cells.filter((c) => !drop.has(`${c.col},${c.row}`)),
-        }))
-        .filter((r) => r.cells.length > 0),
+      prev.flatMap((r) => {
+        const remaining = expandRegionCells(r).filter(
+          (c) => !drop.has(`${c.col},${c.row}`),
+        );
+        if (remaining.length === 0) return [];
+        const components = splitIntoConnectedComponents(remaining);
+        return components
+          .map((comp, idx) => {
+            const compact = compactFromCells(comp);
+            if (!compact) return null;
+            return {
+              id: idx === 0 ? r.id : createId('unusable'),
+              label: r.label,
+              color: r.color,
+              ...compact,
+            };
+          })
+          .filter((sub): sub is UnusableRegion => sub != null);
+      }),
     );
     setSelectedCells([]);
   }, [selectedCells, a]);
+
+  const handleClearAllUnusable = useCallback(() => {
+    if (
+      unusableRegions.length > 0 &&
+      !window.confirm('Clear all unusable regions on this floor?')
+    ) {
+      return;
+    }
+    setUnusableRegions([]);
+    setSelectedCells([]);
+  }, [unusableRegions.length]);
 
   const handleDeleteSelected = useCallback(() => {
     if (selectedIdsRef.current.length === 0) return;
@@ -847,7 +925,9 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
       ) {
         e.preventDefault();
         const stepCells =
-          snapSizeWorld > 0 ? Math.max(1, Math.round(snapSizeWorld / finestSize)) : FINEST_PER_PLACE;
+          snapSizeWorld > 0
+            ? Math.max(1, Math.round(snapSizeWorld / finestSize))
+            : Math.max(1, Math.round(placementSize / finestSize));
         const large = e.shiftKey ? 4 : 1;
         const delta = stepCells * large;
         let dCol = 0;
@@ -874,7 +954,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [setEntities, handleCopy, handlePaste, snapSizeWorld, finestSize]);
+  }, [setEntities, handleCopy, handlePaste, snapSizeWorld, finestSize, placementSize]);
 
   const applyPolygonResize = (
     origin: Entity,
@@ -1059,7 +1139,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
     if (drag?.type === 'pan') {
       if (!movedRef.current) {
         const cell = worldToCell(drag.worldAtStart, gridLevel, a);
-        if (cell.col >= 0 && cell.row >= 0) {
+        if (isCellOnFloor(cell, floor)) {
           if (!drag.shift) setSelectedIds([]);
           setSelectedCells((prev) => mergeCells(prev, [cell], drag.shift));
           setShowEntityMenu(false);
@@ -1075,9 +1155,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
         return;
       }
       // Ctrl+drag always selects cells (zones / unusable / polygons over entities).
-      const cells = cellsInWorldRect(rect, gridLevel, a).filter(
-        (c) => c.col >= 0 && c.row >= 0,
-      );
+      const cells = cellsInWorldRect(rect, gridLevel, a, floor);
       setSelectedCells((prev) => mergeCells(prev, cells, drag.additive));
       if (!drag.additive) setSelectedIds([]);
       setShowEntityMenu(false);
@@ -1115,15 +1193,16 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
   };
 
   const applyDocument = (doc: FloorDocument) => {
-    setFloor(doc.floor);
-    if (doc.viewport) setClampedViewport(doc.viewport);
-    resetEntities(doc.entities);
-    setZones(doc.zones ?? []);
-    setCustomLibrary(doc.customLibrary ?? []);
-    setUnusableRegions(normalizeUnusableRegions(doc));
+    const normalized = normalizeDocument(doc);
+    setFloor(normalized.floor);
+    if (normalized.viewport) setClampedViewport(normalized.viewport);
+    resetEntities(normalized.entities);
+    setZones(normalized.zones ?? []);
+    setCustomLibrary(normalized.customLibrary ?? []);
+    setUnusableRegions(normalized.unusableRegions ?? []);
     setSelectedIds([]);
     setSelectedCells([]);
-    if (doc.theme) setTheme(doc.theme);
+    if (normalized.theme) setTheme(normalized.theme);
   };
 
   const handleLoadDraft = (name: string) => {
@@ -1162,8 +1241,8 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
     const bounds = getVisibleWorldBounds(viewport, svgSize.width, svgSize.height);
     const fw = floorWorldWidth(floor);
     const fh = floorWorldHeight(floor);
-    // Label every current grid cell (e.g. 4,8,12… in cell units), not only major baseUnit.
-    // If labels would be denser than ~36px, thin to every 2nd/4th tick.
+    // Label every current grid cell; thin if denser than ~36px.
+    // Indices are in units of `step` (not `a`) so ticks stay unique when step < a.
     const minLabelPx = 36;
     let step = gridCellSize;
     while (step * viewport.zoom < minLabelPx && step < a * 4) {
@@ -1178,7 +1257,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
     // Always include origin when visible
     if (bounds.minX <= 0 && bounds.maxX >= 0 && !xs.includes(0)) xs.unshift(0);
     if (bounds.minY <= 0 && bounds.maxY >= 0 && !ys.includes(0)) ys.unshift(0);
-    return { xs: xs.slice(0, 60), ys: ys.slice(0, 60) };
+    return { step, xs: xs.slice(0, 60), ys: ys.slice(0, 60) };
   }, [viewport, svgSize, gridCellSize, a, floor]);
 
   const cursorStyle =
@@ -1193,8 +1272,96 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
   const selectionHasUnusable = useMemo(() => {
     if (selectedCells.length === 0) return false;
     const finest = selectedCellsToFinest(selectedCells, a);
-    return finest.some((c) => unusableSet.has(`${c.col},${c.row}`));
-  }, [selectedCells, a, unusableSet]);
+    return finest.some((c) =>
+      unusableRegions.some((r) => finestCellInRegion(c.col, c.row, r)),
+    );
+  }, [selectedCells, a, unusableRegions]);
+
+  const entitiesInSelectionCount = useMemo(() => {
+    if (selectedCells.length === 0) return 0;
+    const finest = selectedCellsToFinest(selectedCells, a);
+    return entitiesInCells(entities, finest, a).length;
+  }, [selectedCells, a, entities]);
+
+  const placePreview = useMemo(() => {
+    if (!placeItem) return null;
+    let world = cursorWorld;
+    if (snapSizeWorld > 0) {
+      world = snapPointToGrid(cursorWorld.x, cursorWorld.y, snapSizeWorld);
+    }
+    let origin = worldToLevelFinest(world, gridLevel, a);
+    origin = { col: Math.max(0, origin.col), row: Math.max(0, origin.row) };
+
+    if (placeItem.cells?.length || placeItem.outline?.length) {
+      const authoredLevel = (placeItem.placeLevel ?? 1) as NamedGridLevel;
+      const scaled = scalePolygonTemplate(
+        {
+          widthCells: placeItem.widthCells,
+          heightCells: placeItem.heightCells,
+          cells: placeItem.cells,
+          outline: placeItem.outline,
+          svgPath: placeItem.svgPath,
+        },
+        authoredLevel,
+        gridLevel,
+        (lvl) => finestPerLevelCell(lvl as NamedGridLevel),
+      );
+      const draft: Entity = {
+        objectId: 'preview',
+        category: placeItem.category,
+        elementType: placeItem.elementType,
+        origin,
+        widthCells: scaled.widthCells,
+        heightCells: scaled.heightCells,
+        outline: scaled.outline,
+        placeLevel: gridLevel,
+      };
+      return {
+        origin,
+        widthCells: scaled.widthCells,
+        heightCells: scaled.heightCells,
+        outline: scaled.outline,
+        fits: entityFitsFloor(draft),
+        color: placeItem.color,
+      };
+    }
+
+    const dims =
+      placeItem.category === 'text'
+        ? catalogToFinestSizeAtLevel(
+            Math.max(placeItem.widthCells, 4),
+            placeItem.heightCells,
+            gridLevel,
+          )
+        : catalogToFinestSizeAtLevel(
+            placeItem.widthCells,
+            placeItem.heightCells,
+            gridLevel,
+          );
+    const draft: Entity = {
+      objectId: 'preview',
+      category: placeItem.category,
+      elementType: placeItem.elementType,
+      origin,
+      widthCells: dims.widthCells,
+      heightCells: dims.heightCells,
+      placeLevel: gridLevel,
+    };
+    return {
+      origin,
+      widthCells: dims.widthCells,
+      heightCells: dims.heightCells,
+      fits: entityFitsFloor(draft),
+      color: placeItem.color,
+    };
+  }, [
+    placeItem,
+    cursorWorld,
+    snapSizeWorld,
+    gridLevel,
+    a,
+    entityFitsFloor,
+  ]);
 
   return (
     <div className="editor-layout">
@@ -1302,8 +1469,20 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
               <CellHighlight
                 hoveredCell={hoveredCell}
                 selectedCells={selectedCells}
+                floor={floor}
                 a={a}
               />
+              {placePreview && (
+                <PlacePreview
+                  origin={placePreview.origin}
+                  widthCells={placePreview.widthCells}
+                  heightCells={placePreview.heightCells}
+                  outline={placePreview.outline}
+                  fits={placePreview.fits}
+                  a={a}
+                  color={placePreview.color}
+                />
+              )}
               <EntitiesLayer
                 entities={entities}
                 selectedIds={selectedSet}
@@ -1335,7 +1514,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
                 if (sx < 2 || sx > svgSize.width - 8) return null;
                 return (
                   <text key={`lx-${wx}`} x={sx} y={sy} textAnchor="middle">
-                    {Math.round(wx / a)}
+                    {Math.round(wx / axisLabels.step)}
                   </text>
                 );
               })}
@@ -1345,7 +1524,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
                 if (sy < 10 || sy > svgSize.height - 14) return null;
                 return (
                   <text key={`ly-${wy}`} x={sx} y={sy} textAnchor="start" dominantBaseline="middle">
-                    {Math.round(wy / a)}
+                    {Math.round(wy / axisLabels.step)}
                   </text>
                 );
               })}
@@ -1359,13 +1538,16 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
               cellCount={selectedCells.length}
               canPaste={clipboard.length > 0}
               hasUnusableInSelection={selectionHasUnusable}
+              entityCountInSelection={entitiesInSelectionCount}
               onMarkPolygon={handleMarkAsPolygon}
               onPaste={handlePaste}
               onCopyZone={handleCopyZone}
               onMarkZone={() => void handleMarkZone()}
               onMarkUnusable={() => void handleMarkUnusable()}
               onLabelUnusable={() => void handleLabelUnusable()}
-              onClearUnusable={handleClearUnusable}
+              onMarkUsable={handleMarkUsable}
+              onClearAllUnusable={handleClearAllUnusable}
+              onDeleteEntities={handleDeleteEntitiesInSelection}
               onClear={() => setSelectedCells([])}
             />
           )}
@@ -1394,7 +1576,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
               cell ({Math.max(0, cursorCell.col)}, {Math.max(0, cursorCell.row)})
             </span>
             <span>
-              a={floor.a} · cell {gridCellSize.toFixed(2)} · L{gridLevel}
+              a={floor.a} · cell {gridCellSize.toFixed(2)} · L{gridLevel} · place L{gridLevel}
             </span>
             <span>{snapEnabled ? 'Snap ON' : 'Snap OFF'}</span>
             <span>

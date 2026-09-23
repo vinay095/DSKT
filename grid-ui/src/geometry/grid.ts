@@ -45,6 +45,28 @@ export function floorFinestRows(floor: FloorConfig): number {
   return floor.rows * FINEST_PER_A;
 }
 
+/** Inclusive cell count (cols × rows) of the floor at a named grid level. */
+export function floorCellBounds(
+  floor: FloorConfig,
+  level: NamedGridLevel,
+): { cols: number; rows: number } {
+  const cellSize = levelCellSize(level, floor.a);
+  return {
+    cols: Math.max(1, Math.round(floorWorldWidth(floor) / cellSize)),
+    rows: Math.max(1, Math.round(floorWorldHeight(floor) / cellSize)),
+  };
+}
+
+export function isCellOnFloor(
+  cell: CellRef,
+  floor: FloorConfig,
+): boolean {
+  if (cell.col < 0 || cell.row < 0) return false;
+  const level = Math.max(-1, Math.min(2, cell.level)) as NamedGridLevel;
+  const bounds = floorCellBounds(floor, level);
+  return cell.col < bounds.cols && cell.row < bounds.rows;
+}
+
 /** Coarsest cell size (level -1). */
 export function getBaseUnit(a: number): number {
   return levelCellSize(-1, a);
@@ -141,13 +163,29 @@ export function worldToFinestCell(point: Point, a: number): { col: number; row: 
 
 /** Snap world point to placement grid (a/4), return finest origin. */
 export function worldToPlacementFinest(point: Point, a: number): { col: number; row: number } {
-  const place = a / PLACE_PER_A;
-  const pCol = Math.floor(point.x / place);
-  const pRow = Math.floor(point.y / place);
+  return worldToLevelFinest(point, 1, a);
+}
+
+/** Snap world point to a named grid level; return finest-cell origin. */
+export function worldToLevelFinest(
+  point: Point,
+  level: NamedGridLevel,
+  a: number,
+): { col: number; row: number } {
+  const cellSize = levelCellSize(level, a);
+  const finest = a / FINEST_PER_A;
+  const perCell = Math.max(1, Math.round(cellSize / finest));
+  const pCol = Math.floor(point.x / cellSize);
+  const pRow = Math.floor(point.y / cellSize);
   return {
-    col: pCol * FINEST_PER_PLACE,
-    row: pRow * FINEST_PER_PLACE,
+    col: pCol * perCell,
+    row: pRow * perCell,
   };
+}
+
+/** Finest cells per one cell at the given named level. */
+export function finestPerLevelCell(level: NamedGridLevel): number {
+  return Math.max(1, Math.round(levelCellSize(level, 1) * FINEST_PER_A));
 }
 
 export function finestCellToWorldRect(col: number, row: number, a: number): Rect {
@@ -155,13 +193,30 @@ export function finestCellToWorldRect(col: number, row: number, a: number): Rect
   return { x: col * f, y: row * f, width: f, height: f };
 }
 
+/** Convert catalog W×H (in level-1 / a/4 cells) to finest. */
 export function catalogToFinestSize(widthCells: number, heightCells: number): {
   widthCells: number;
   heightCells: number;
 } {
+  return catalogToFinestSizeAtLevel(widthCells, heightCells, 1);
+}
+
+/**
+ * Convert catalog W×H cell counts at the current place level into finest cells.
+ * Catalog types stay authored as cell counts; interpretation follows `level`.
+ */
+export function catalogToFinestSizeAtLevel(
+  widthCells: number,
+  heightCells: number,
+  level: NamedGridLevel,
+): {
+  widthCells: number;
+  heightCells: number;
+} {
+  const scale = finestPerLevelCell(level);
   return {
-    widthCells: widthCells * FINEST_PER_PLACE,
-    heightCells: heightCells * FINEST_PER_PLACE,
+    widthCells: widthCells * scale,
+    heightCells: heightCells * scale,
   };
 }
 
@@ -174,12 +229,20 @@ export function isSameCell(a: CellRef | null, b: CellRef | null): boolean {
   return a.level === b.level && a.col === b.col && a.row === b.row;
 }
 
-export function cellsInWorldRect(rect: Rect, level: NamedGridLevel, a: number): CellRef[] {
+export function cellsInWorldRect(
+  rect: Rect,
+  level: NamedGridLevel,
+  a: number,
+  floor?: FloorConfig,
+): CellRef[] {
   const cellSize = levelCellSize(level, a);
+  const bounds = floor ? floorCellBounds(floor, level) : null;
   const minCol = Math.max(0, Math.floor(rect.x / cellSize));
-  const maxCol = Math.floor((rect.x + rect.width - 1e-9) / cellSize);
+  const maxColRaw = Math.floor((rect.x + rect.width - 1e-9) / cellSize);
   const minRow = Math.max(0, Math.floor(rect.y / cellSize));
-  const maxRow = Math.floor((rect.y + rect.height - 1e-9) / cellSize);
+  const maxRowRaw = Math.floor((rect.y + rect.height - 1e-9) / cellSize);
+  const maxCol = bounds ? Math.min(maxColRaw, bounds.cols - 1) : maxColRaw;
+  const maxRow = bounds ? Math.min(maxRowRaw, bounds.rows - 1) : maxRowRaw;
   const cells: CellRef[] = [];
   for (let row = minRow; row <= maxRow; row++) {
     for (let col = minCol; col <= maxCol; col++) {

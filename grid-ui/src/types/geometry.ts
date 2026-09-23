@@ -25,11 +25,20 @@ export type GridCell = {
   row: number;
 };
 
+/** Named place/snap level persisted on entities: -1=2a, 0=a, 1=a/4, 2=a/16. */
+export type PlaceLevel = -1 | 0 | 1 | 2;
+
+/** Outline vertex in finest-cell coordinates (boundary ring). */
+export type OutlineVertex = {
+  col: number;
+  row: number;
+};
+
 export type CatalogType = {
   elementType: string;
   label: string;
   svg?: string;
-  /** Size in level-1 (a/4) cells. */
+  /** Size in catalog cells; interpreted at current place level. */
   widthCells: number;
   heightCells: number;
   color: string;
@@ -46,16 +55,20 @@ export type LibraryItem = {
   category: string;
   elementType: string;
   label: string;
-  /** Catalog / library size in a/4 cells (converted to finest on place). */
+  /** Catalog size in cells at place time (converted to finest on place). */
   widthCells: number;
   heightCells: number;
   color: string;
   svg?: string;
-  /** Relative finest (a/16) cells for custom polygons. */
+  /** Relative finest (a/16) cells for custom polygons (runtime / legacy). */
   cells?: GridCell[];
+  /** Boundary vertices in relative finest coords (preferred over cells for JSON). */
+  outline?: OutlineVertex[];
   svgPath?: string;
   fromSelection?: boolean;
   defaultFontSize?: number;
+  /** Level the custom item was authored at. */
+  placeLevel?: PlaceLevel;
 };
 
 export type CustomLibraryEntry = LibraryItem & {
@@ -76,25 +89,41 @@ export type Entity = {
   color?: string;
   label?: string;
   svg?: string;
-  /** Relative finest cells for custom polygons. */
+  /** Relative finest cells for custom polygons (runtime / legacy). */
   cells?: GridCell[];
+  /** Boundary vertices in relative finest coords (persisted). */
+  outline?: OutlineVertex[];
   /** Boundary path in finest-cell coords (preview). */
   svgPath?: string;
   fontSize?: number;
+  /** Grid level used when this entity was placed; footprint stays locked after zoom. */
+  placeLevel?: PlaceLevel;
 };
 
 export type FloorZone = {
   id: string;
   label: string;
-  cells: GridCell[];
   color: string;
+  /** AABB origin in finest cells. */
+  origin: GridCell;
+  widthCells: number;
+  heightCells: number;
+  /** Present for irregular zones; omitted for solid rectangles. */
+  outline?: OutlineVertex[];
+  /** @deprecated absolute finest cells; migrated to origin/outline on load */
+  cells?: GridCell[];
 };
 
 export type UnusableRegion = {
   id: string;
   label: string;
-  cells: GridCell[];
   color?: string;
+  origin: GridCell;
+  widthCells: number;
+  heightCells: number;
+  outline?: OutlineVertex[];
+  /** @deprecated absolute finest cells; migrated on load */
+  cells?: GridCell[];
 };
 
 export type CellRef = {

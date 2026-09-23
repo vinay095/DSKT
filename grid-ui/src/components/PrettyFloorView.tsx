@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { FloorDocument } from '../lib/drafts';
-import { normalizeUnusableRegions } from '../lib/drafts';
+import { normalizeDocument } from '../lib/drafts';
 import { assetUrl } from '../lib/catalog';
 import { floorWorldHeight, floorWorldWidth } from '../types/geometry';
 import { isPolygonEntity } from '../geometry/entities';
 import { FINEST_PER_A } from '../geometry/grid';
-import { cellsToMergedRects } from '../geometry/cellMerge';
 
 interface PrettyFloorViewProps {
   document: FloorDocument;
@@ -14,13 +13,14 @@ interface PrettyFloorViewProps {
 
 type Cam = { zoom: number; panX: number; panY: number };
 
-const PrettyFloorView: React.FC<PrettyFloorViewProps> = ({ document: doc, onBack }) => {
+const PrettyFloorView: React.FC<PrettyFloorViewProps> = ({ document: rawDoc, onBack }) => {
+  const doc = useMemo(() => normalizeDocument(rawDoc), [rawDoc]);
   const a = doc.a;
   const floor = doc.floor;
   const width = floorWorldWidth(floor);
   const height = floorWorldHeight(floor);
   const f = a / FINEST_PER_A;
-  const unusable = normalizeUnusableRegions(doc);
+  const unusable = doc.unusableRegions ?? [];
   const wrapRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 800, h: 600 });
   const [cam, setCam] = useState<Cam>({ zoom: 1, panX: 0, panY: 0 });
@@ -75,22 +75,53 @@ const PrettyFloorView: React.FC<PrettyFloorViewProps> = ({ document: doc, onBack
     return () => el.removeEventListener('wheel', onWheelNative);
   }, []);
 
-  const zoneRects = useMemo(
+  const zoneShapes = useMemo(
     () =>
-      doc.zones.map((z) => ({
-        id: z.id,
-        color: z.color,
-        rects: cellsToMergedRects(z.cells, f),
-      })),
+      doc.zones.map((z) => {
+        if (!z.outline || z.outline.length < 3) {
+          return {
+            id: z.id,
+            color: z.color,
+            kind: 'rect' as const,
+            x: z.origin.col * f,
+            y: z.origin.row * f,
+            width: z.widthCells * f,
+            height: z.heightCells * f,
+          };
+        }
+        return {
+          id: z.id,
+          color: z.color,
+          kind: 'poly' as const,
+          pts: z.outline
+            .map((v) => `${(z.origin.col + v.col) * f},${(z.origin.row + v.row) * f}`)
+            .join(' '),
+        };
+      }),
     [doc.zones, f],
   );
 
-  const unusableRects = useMemo(
+  const unusableShapes = useMemo(
     () =>
-      unusable.map((r) => ({
-        id: r.id,
-        rects: cellsToMergedRects(r.cells, f),
-      })),
+      unusable.map((r) => {
+        if (!r.outline || r.outline.length < 3) {
+          return {
+            id: r.id,
+            kind: 'rect' as const,
+            x: r.origin.col * f,
+            y: r.origin.row * f,
+            width: r.widthCells * f,
+            height: r.heightCells * f,
+          };
+        }
+        return {
+          id: r.id,
+          kind: 'poly' as const,
+          pts: r.outline
+            .map((v) => `${(r.origin.col + v.col) * f},${(r.origin.row + v.row) * f}`)
+            .join(' '),
+        };
+      }),
     [unusable, f],
   );
 
@@ -167,30 +198,38 @@ const PrettyFloorView: React.FC<PrettyFloorViewProps> = ({ document: doc, onBack
 
             {/* Screen Y-down: flip world Y-up content */}
             <g transform={`translate(0, ${height}) scale(1, -1)`}>
-              {unusableRects.map((region) =>
-                region.rects.map((r, i) => (
+              {unusableShapes.map((region) =>
+                region.kind === 'rect' ? (
                   <rect
-                    key={`${region.id}-${i}`}
-                    x={r.x}
-                    y={r.y}
-                    width={r.width}
-                    height={r.height}
+                    key={region.id}
+                    x={region.x}
+                    y={region.y}
+                    width={region.width}
+                    height={region.height}
                     fill="rgba(100,116,139,0.28)"
                   />
-                )),
+                ) : (
+                  <polygon
+                    key={region.id}
+                    points={region.pts}
+                    fill="rgba(100,116,139,0.28)"
+                  />
+                ),
               )}
 
-              {zoneRects.map((zone) =>
-                zone.rects.map((r, i) => (
+              {zoneShapes.map((zone) =>
+                zone.kind === 'rect' ? (
                   <rect
-                    key={`${zone.id}-${i}`}
-                    x={r.x}
-                    y={r.y}
-                    width={r.width}
-                    height={r.height}
+                    key={zone.id}
+                    x={zone.x}
+                    y={zone.y}
+                    width={zone.width}
+                    height={zone.height}
                     fill={zone.color}
                   />
-                )),
+                ) : (
+                  <polygon key={zone.id} points={zone.pts} fill={zone.color} />
+                ),
               )}
 
               {doc.entities.map((e) => {
@@ -220,11 +259,19 @@ const PrettyFloorView: React.FC<PrettyFloorViewProps> = ({ document: doc, onBack
                   );
                 }
 
-                if (isPolygonEntity(e) && e.svgPath) {
+                if (isPolygonEntity(e) && (e.svgPath || e.outline)) {
+                  let pathD = e.svgPath ?? '';
+                  if (!pathD && e.outline && e.outline.length >= 2) {
+                    const [first, ...rest] = e.outline;
+                    pathD = `M${first.col},${first.row}`;
+                    for (const v of rest) pathD += ` L${v.col},${v.row}`;
+                    pathD += ' Z';
+                  }
+                  if (!pathD) return null;
                   return (
                     <g key={e.objectId} transform={`translate(${x}, ${y}) scale(${f})`}>
                       <path
-                        d={e.svgPath}
+                        d={pathD}
                         fill={e.color ?? '#94a3b8'}
                         fillOpacity={0.15}
                         stroke={e.color ?? '#64748b'}

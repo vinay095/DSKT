@@ -39,7 +39,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       <section className="prop-section">
         <h3>Grid</h3>
         <label className="prop-field">
-          <span>Unit a</span>
+          <span>Precision</span>
           <input
             type="number"
             min={0.05}
@@ -75,7 +75,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           />
         </label>
         <p className="panel-hint">
-          Levels: 2a → a → a/4 → a/16. Place at a/4; store at a/16.
+          Levels: 2a → a → a/4 → a/16. Place on the current level; store at a/16.
         </p>
       </section>
 

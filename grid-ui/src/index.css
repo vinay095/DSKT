@@ -846,20 +846,23 @@ body,
   z-index: 30;
   transform: translate(-50%, calc(-100% - 10px));
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 6px 8px;
+  max-width: min(340px, calc(100% - 24px));
+  padding: 8px;
   background: var(--bg-toolbar);
   border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-  white-space: nowrap;
 }
 
 .selection-action-count {
   font-size: 11px;
   color: var(--text-muted);
   padding: 0 4px;
+  flex: 0 0 auto;
 }
 
 .selection-action-btn {

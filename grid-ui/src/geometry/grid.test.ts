@@ -9,6 +9,7 @@ import {
   isSameCell,
   levelCellSize,
   worldToCell,
+  worldToLevelFinest,
   worldToPlacementFinest,
 } from './grid';
 
@@ -79,6 +80,14 @@ describe('worldToPlacementFinest', () => {
     // place size 0.25; col=1,row=3 → finest 4,12
     expect(cell).toEqual({ col: 4, row: 12 });
     expect(FINEST_PER_A).toBe(16);
+  });
+});
+
+describe('worldToLevelFinest', () => {
+  it('snaps at level 0 to multiples of 16 finest', () => {
+    const a = 1;
+    const cell = worldToLevelFinest({ x: 1.2, y: 0.1 }, 0, a);
+    expect(cell).toEqual({ col: 16, row: 0 });
   });
 });
 

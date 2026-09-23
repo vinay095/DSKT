@@ -1,7 +1,6 @@
 import React from 'react';
 import type { Entity } from '../types/geometry';
 import { entityWorldRect, isPolygonEntity } from '../geometry/entities';
-import { cellsToWorldOutline, relativeCellsWorldRects } from '../geometry/footprint';
 import { FINEST_PER_A } from '../geometry/grid';
 
 interface EntitiesLayerProps {
@@ -82,10 +81,20 @@ const EntitiesLayer: React.FC<EntitiesLayerProps> = ({
           );
         }
 
-        if (isPolygonEntity(e) && e.cells) {
-          const rects = relativeCellsWorldRects(e.origin, e.cells, a);
-          const outline = cellsToWorldOutline(e.origin, e.cells, a);
-          const pts = outline.map((p) => `${p.x},${p.y}`).join(' ');
+        if (isPolygonEntity(e)) {
+          const outlinePts =
+            e.outline && e.outline.length >= 3
+              ? e.outline.map((v) => ({
+                  x: (e.origin.col + v.col) * f,
+                  y: (e.origin.row + v.row) * f,
+                }))
+              : [
+                  { x: bounds.x, y: bounds.y },
+                  { x: bounds.x + bounds.width, y: bounds.y },
+                  { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
+                  { x: bounds.x, y: bounds.y + bounds.height },
+                ];
+          const pts = outlinePts.map((p) => `${p.x},${p.y}`).join(' ');
           const fontSize = shapeLabelSize(e, a, 0.2);
           return (
             <g
@@ -94,27 +103,14 @@ const EntitiesLayer: React.FC<EntitiesLayerProps> = ({
               onMouseDown={(ev) => onEntityPointerDown?.(e.objectId, ev)}
               style={{ cursor: 'move' }}
             >
-              {rects.map((r, i) => (
-                <rect
-                  key={i}
-                  x={r.x}
-                  y={r.y}
-                  width={r.width}
-                  height={r.height}
-                  fill={color}
-                  fillOpacity={selected ? 0.4 : 0.25}
-                  stroke="none"
-                />
-              ))}
-              {outline.length >= 3 && (
-                <polygon
-                  points={pts}
-                  fill="none"
-                  stroke={selected ? '#22c55e' : color}
-                  strokeWidth={selected ? 2 : 1.5}
-                  vectorEffect="non-scaling-stroke"
-                />
-              )}
+              <polygon
+                points={pts}
+                fill={color}
+                fillOpacity={selected ? 0.4 : 0.25}
+                stroke={selected ? '#22c55e' : color}
+                strokeWidth={selected ? 2 : 1.5}
+                vectorEffect="non-scaling-stroke"
+              />
               <g
                 transform={`translate(${cx}, ${cy}) scale(1, -1)`}
                 pointerEvents="none"

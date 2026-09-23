@@ -6,13 +6,16 @@ interface SelectionActionMenuProps {
   cellCount: number;
   canPaste: boolean;
   hasUnusableInSelection: boolean;
+  entityCountInSelection: number;
   onMarkPolygon: () => void;
   onPaste: () => void;
   onCopyZone: () => void;
   onMarkZone: () => void;
   onMarkUnusable: () => void;
   onLabelUnusable: () => void;
-  onClearUnusable: () => void;
+  onMarkUsable: () => void;
+  onClearAllUnusable: () => void;
+  onDeleteEntities: () => void;
   onClear: () => void;
 }
 
@@ -22,13 +25,16 @@ const SelectionActionMenu: React.FC<SelectionActionMenuProps> = ({
   cellCount,
   canPaste,
   hasUnusableInSelection,
+  entityCountInSelection,
   onMarkPolygon,
   onPaste,
   onCopyZone,
   onMarkZone,
   onMarkUnusable,
   onLabelUnusable,
-  onClearUnusable,
+  onMarkUsable,
+  onClearAllUnusable,
+  onDeleteEntities,
   onClear,
 }) => {
   return (
@@ -46,12 +52,17 @@ const SelectionActionMenu: React.FC<SelectionActionMenuProps> = ({
         Mark unusable
       </button>
       {hasUnusableInSelection && (
-        <button type="button" className="selection-action-btn" onClick={onLabelUnusable}>
-          Label unusable
-        </button>
+        <>
+          <button type="button" className="selection-action-btn" onClick={onMarkUsable}>
+            Mark usable
+          </button>
+          <button type="button" className="selection-action-btn" onClick={onLabelUnusable}>
+            Label unusable
+          </button>
+        </>
       )}
-      <button type="button" className="selection-action-btn" onClick={onClearUnusable}>
-        Clear unusable
+      <button type="button" className="selection-action-btn ghost" onClick={onClearAllUnusable}>
+        Clear all unusable
       </button>
       <button
         type="button"
@@ -66,6 +77,14 @@ const SelectionActionMenu: React.FC<SelectionActionMenuProps> = ({
       </button>
       <button type="button" className="selection-action-btn" onClick={onMarkZone}>
         Mark zone
+      </button>
+      <button
+        type="button"
+        className="selection-action-btn"
+        onClick={onDeleteEntities}
+        disabled={entityCountInSelection === 0}
+      >
+        Delete entities{entityCountInSelection > 0 ? ` (${entityCountInSelection})` : ''}
       </button>
       <button type="button" className="selection-action-btn ghost" onClick={onClear}>
         Clear

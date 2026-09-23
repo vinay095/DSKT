@@ -1,6 +1,12 @@
 import type { Entity, GridCell, Point, Rect } from '../types/geometry';
 import { pointInRelativeCells, cellsToSvgPath } from './footprint';
 import { FINEST_PER_A } from './grid';
+import {
+  cellsToOutline,
+  outlineToCells,
+  outlineToSvgPath,
+  pointInOutline,
+} from './shapeStorage';
 
 /** World rect for an entity; `a` is the named unit (finest = a/16). */
 export function entityWorldRect(entity: Entity, a: number): Rect {
@@ -31,14 +37,26 @@ export function rectsIntersect(a: Rect, b: Rect): boolean {
 }
 
 export function isPolygonEntity(entity: Entity): boolean {
-  return Boolean(entity.cells && entity.cells.length > 0);
+  return Boolean(
+    (entity.cells && entity.cells.length > 0) ||
+      (entity.outline && entity.outline.length >= 3),
+  );
 }
 
 export function hitTestEntity(entities: Entity[], world: Point, a: number): Entity | null {
   for (let i = entities.length - 1; i >= 0; i--) {
     const e = entities[i];
-    if (isPolygonEntity(e) && e.cells) {
-      if (pointInRelativeCells(world, e.origin, e.cells, a)) return e;
+    if (isPolygonEntity(e)) {
+      if (e.cells && e.cells.length > 0) {
+        if (pointInRelativeCells(world, e.origin, e.cells, a)) return e;
+      } else if (e.outline && e.outline.length >= 3) {
+        const f = a / FINEST_PER_A;
+        const local = {
+          x: world.x / f - e.origin.col,
+          y: world.y / f - e.origin.row,
+        };
+        if (pointInOutline(local, e.outline)) return e;
+      }
       continue;
     }
     if (pointInRect(world, entityBounds(e, a))) return e;
@@ -53,7 +71,7 @@ export function entitiesIntersectingRect(
 ): Entity[] {
   const f = a / FINEST_PER_A;
   return entities.filter((e) => {
-    if (isPolygonEntity(e) && e.cells) {
+    if (isPolygonEntity(e) && e.cells && e.cells.length > 0) {
       return e.cells.some((c) =>
         rectsIntersect(rect, {
           x: (e.origin.col + c.col) * f,
@@ -62,6 +80,10 @@ export function entitiesIntersectingRect(
           height: f,
         }),
       );
+    }
+    if (isPolygonEntity(e) && e.outline && e.outline.length >= 3) {
+      // AABB overlap is enough for selection; precise hit uses outline
+      return rectsIntersect(entityBounds(e, a), rect);
     }
     return rectsIntersect(entityBounds(e, a), rect);
   });
@@ -83,44 +105,50 @@ export type EntityRotation = 0 | 90 | 180 | 270;
 export function rotateEntity90CCW(entity: Entity): Entity {
   const nextRot = (((entity.rotation ?? 0) + 90) % 360) as EntityRotation;
 
-  if (isPolygonEntity(entity) && entity.cells) {
-    const w = entity.widthCells;
-    const h = entity.heightCells;
-    const cx = entity.origin.col + w / 2;
-    const cy = entity.origin.row + h / 2;
-    // (col, row) relative → 90° CCW: (row, w-1-col) then re-normalize
-    const rotated = entity.cells.map((c) => ({
-      col: c.row,
-      row: w - 1 - c.col,
-    }));
-    let minCol = Infinity;
-    let minRow = Infinity;
-    let maxCol = -Infinity;
-    let maxRow = -Infinity;
-    for (const c of rotated) {
-      minCol = Math.min(minCol, c.col);
-      minRow = Math.min(minRow, c.row);
-      maxCol = Math.max(maxCol, c.col);
-      maxRow = Math.max(maxRow, c.row);
+  if (isPolygonEntity(entity)) {
+    let cells = entity.cells;
+    if ((!cells || cells.length === 0) && entity.outline && entity.outline.length >= 3) {
+      cells = outlineToCells(entity.outline, entity.widthCells, entity.heightCells);
     }
-    const cells = rotated.map((c) => ({
-      col: c.col - minCol,
-      row: c.row - minRow,
-    }));
-    const nw = maxCol - minCol + 1;
-    const nh = maxRow - minRow + 1;
-    return {
-      ...entity,
-      origin: {
-        col: Math.round(cx - nw / 2),
-        row: Math.round(cy - nh / 2),
-      },
-      widthCells: nw,
-      heightCells: nh,
-      cells,
-      svgPath: cellsToSvgPath(cells),
-      rotation: nextRot,
-    };
+    if (cells && cells.length > 0) {
+      const w = entity.widthCells;
+      const h = entity.heightCells;
+      const cx = entity.origin.col + w / 2;
+      const cy = entity.origin.row + h / 2;
+      const rotated = cells.map((c) => ({
+        col: c.row,
+        row: w - 1 - c.col,
+      }));
+      let minCol = Infinity;
+      let minRow = Infinity;
+      let maxCol = -Infinity;
+      let maxRow = -Infinity;
+      for (const c of rotated) {
+        minCol = Math.min(minCol, c.col);
+        minRow = Math.min(minRow, c.row);
+        maxCol = Math.max(maxCol, c.col);
+        maxRow = Math.max(maxRow, c.row);
+      }
+      const nextCells = rotated.map((c) => ({
+        col: c.col - minCol,
+        row: c.row - minRow,
+      }));
+      const nw = maxCol - minCol + 1;
+      const nh = maxRow - minRow + 1;
+      return {
+        ...entity,
+        origin: {
+          col: Math.round(cx - nw / 2),
+          row: Math.round(cy - nh / 2),
+        },
+        widthCells: nw,
+        heightCells: nh,
+        cells: nextCells,
+        outline: cellsToOutline(nextCells),
+        svgPath: cellsToSvgPath(nextCells),
+        rotation: nextRot,
+      };
+    }
   }
 
   const w = entity.widthCells;
@@ -145,21 +173,36 @@ export function resizePolygonEntity(
   entity: Entity,
   next: { origin: GridCell; widthCells: number; heightCells: number },
 ): Entity {
-  if (!entity.cells || entity.cells.length === 0) {
-    return {
-      ...entity,
-      origin: next.origin,
-      widthCells: Math.max(1, next.widthCells),
-      heightCells: Math.max(1, next.heightCells),
-    };
-  }
-
   const ow = Math.max(1, entity.widthCells);
   const oh = Math.max(1, entity.heightCells);
   const nw = Math.max(1, next.widthCells);
   const nh = Math.max(1, next.heightCells);
   const sx = nw / ow;
   const sy = nh / oh;
+
+  if (entity.outline && entity.outline.length >= 3 && (!entity.cells || entity.cells.length === 0)) {
+    const outline = entity.outline.map((v) => ({
+      col: Math.round(v.col * sx),
+      row: Math.round(v.row * sy),
+    }));
+    return {
+      ...entity,
+      origin: next.origin,
+      widthCells: nw,
+      heightCells: nh,
+      outline,
+      svgPath: outlineToSvgPath(outline),
+    };
+  }
+
+  if (!entity.cells || entity.cells.length === 0) {
+    return {
+      ...entity,
+      origin: next.origin,
+      widthCells: nw,
+      heightCells: nh,
+    };
+  }
 
   const scaled: GridCell[] = [];
   const seen = new Set<string>();
@@ -192,6 +235,7 @@ export function resizePolygonEntity(
     widthCells: nw,
     heightCells: nh,
     cells: scaled,
+    outline: cellsToOutline(scaled),
     svgPath: cellsToSvgPath(scaled),
   };
 }
@@ -202,6 +246,7 @@ export function cloneEntity(entity: Entity, objectId: string): Entity {
     objectId,
     origin: { ...entity.origin },
     cells: entity.cells?.map((c) => ({ ...c })),
+    outline: entity.outline?.map((v) => ({ ...v })),
   };
 }
 
@@ -237,11 +282,19 @@ export function entitiesInCells(
 
 /** Absolute finest cells occupied by an entity. */
 export function entityOccupiedCells(entity: Entity): GridCell[] {
-  if (isPolygonEntity(entity) && entity.cells) {
+  if (isPolygonEntity(entity) && entity.cells && entity.cells.length > 0) {
     return entity.cells.map((c) => ({
       col: entity.origin.col + c.col,
       row: entity.origin.row + c.row,
     }));
+  }
+  if (isPolygonEntity(entity) && entity.outline && entity.outline.length >= 3) {
+    return outlineToCells(entity.outline, entity.widthCells, entity.heightCells).map(
+      (c) => ({
+        col: entity.origin.col + c.col,
+        row: entity.origin.row + c.row,
+      }),
+    );
   }
   const cells: GridCell[] = [];
   for (let r = 0; r < entity.heightCells; r++) {

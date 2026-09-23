@@ -36,8 +36,10 @@ const HowToUseModal: React.FC<HowToUseModalProps> = ({ open, onClose }) => {
                 reveals a/4 then a/16.
               </li>
               <li>
-                Place furniture on the <strong>a/4</strong> grid; storage uses finest{' '}
-                <strong>a/16</strong> cells. Entity size is fixed (no scale up/down).
+                Place furniture on the <strong>current zoom level</strong> cell (2a / a / a/4 /
+                a/16). Catalog W×H is in those cells; size is locked via{' '}
+                <code>placeLevel</code> after place. Storage uses finest <strong>a/16</strong>{' '}
+                cells.
               </li>
               <li>
                 When zoomed in, use the bottom/right <strong>nav bars</strong> to pan quickly.
@@ -71,7 +73,8 @@ const HowToUseModal: React.FC<HowToUseModalProps> = ({ open, onClose }) => {
                 occupied cells only; <strong>Preview</strong> draws SVGs.
               </li>
               <li>
-                After place: Copy / Rotate 90° CCW / Delete. Catalog sizes are in a/4 cells.
+                After place: Copy / Rotate 90° CCW / Delete. Catalog and custom polygons place at the
+                current selectable grid level (ghost preview follows the cursor).
               </li>
             </ul>
           </section>
@@ -88,7 +91,11 @@ const HowToUseModal: React.FC<HowToUseModalProps> = ({ open, onClose }) => {
               </li>
               <li>
                 Mark unusable for irregular floors; optional labels (e.g. pillar). Entities cannot
-                sit on unusable cells.
+                sit on unusable cells. To restore: select unusable cells →{' '}
+                <strong>Mark usable</strong>.
+              </li>
+              <li>
+                Cell selection is limited to the designated floor (not the grayed outside).
               </li>
             </ul>
           </section>
@@ -97,8 +104,13 @@ const HowToUseModal: React.FC<HowToUseModalProps> = ({ open, onClose }) => {
             <h3>JSON &amp; Preview</h3>
             <ul>
               <li>
-                Download / copy / load floor JSON. Preview shows floor size as{' '}
-                <strong>cols×rows</strong> (e.g. 128×128) in a sticky top bar.
+                Download / copy / load floor JSON. Polygons, zones, and unusable regions store
+                corner <strong>outline</strong> vertices or an AABB (not every filled cell). Preview
+                shows floor size as <strong>cols×rows</strong> (e.g. 128×128) in a sticky top bar.
+              </li>
+              <li>
+                While placing from the library, a ghost footprint follows the cursor (snapped to the
+                current grid level).
               </li>
             </ul>
           </section>

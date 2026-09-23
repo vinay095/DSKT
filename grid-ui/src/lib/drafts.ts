@@ -7,6 +7,13 @@ import type {
   UnusableRegion,
 } from '../types/geometry';
 import type { Viewport } from '../types/viewport';
+import {
+  compactEntityForSave,
+  compactLibraryItemForSave,
+  hydratePolygonEntity,
+  normalizeUnusable,
+  normalizeZone,
+} from '../geometry/shapeStorage';
 
 export type FloorDocument = {
   version: 2;
@@ -30,30 +37,70 @@ const STORAGE_KEY = 'floor-planner-drafts-v2';
 
 export function normalizeUnusableRegions(doc: FloorDocument): UnusableRegion[] {
   if (doc.unusableRegions && doc.unusableRegions.length > 0) {
-    return doc.unusableRegions;
+    return doc.unusableRegions.map(normalizeUnusable);
   }
   if (doc.unusableCells && doc.unusableCells.length > 0) {
     return [
-      {
+      normalizeUnusable({
         id: `unusable-${Math.random().toString(36).slice(2, 10)}`,
         label: '',
         cells: doc.unusableCells,
-      },
+        origin: { col: 0, row: 0 },
+        widthCells: 1,
+        heightCells: 1,
+      }),
     ];
   }
   return [];
 }
 
-/** Strip deprecated fields when saving. */
+export function normalizeDocument(doc: FloorDocument): FloorDocument {
+  return {
+    ...doc,
+    entities: doc.entities.map(hydratePolygonEntity),
+    zones: doc.zones.map(normalizeZone),
+    customLibrary: doc.customLibrary.map((item) => {
+      if (!item.cells?.length && !item.outline?.length) return item;
+      const hydrated = hydratePolygonEntity({
+        objectId: item.id,
+        category: item.category,
+        elementType: item.elementType,
+        origin: { col: 0, row: 0 },
+        widthCells: item.widthCells,
+        heightCells: item.heightCells,
+        cells: item.cells,
+        outline: item.outline,
+        svgPath: item.svgPath,
+        placeLevel: item.placeLevel,
+      });
+      return {
+        ...item,
+        cells: undefined,
+        outline: hydrated.outline,
+        svgPath: hydrated.svgPath,
+      };
+    }),
+    unusableRegions: normalizeUnusableRegions(doc),
+  };
+}
+
+/** Strip deprecated fields and bulk cells[] when saving. */
 export function sanitizeDocument(doc: FloorDocument): FloorDocument {
   const {
     subdivision: _sub,
     unusableCells: _cells,
     ...rest
   } = doc;
-  return {
+  const normalized = normalizeDocument({
     ...rest,
     unusableRegions: normalizeUnusableRegions(doc),
+  });
+  return {
+    ...normalized,
+    entities: normalized.entities.map(compactEntityForSave),
+    zones: normalized.zones.map(normalizeZone),
+    customLibrary: normalized.customLibrary.map(compactLibraryItemForSave),
+    unusableRegions: (normalized.unusableRegions ?? []).map(normalizeUnusable),
   };
 }
 
@@ -84,7 +131,8 @@ export function saveDraft(draft: FloorDocument): void {
 }
 
 export function loadDraft(name: string): FloorDocument | null {
-  return listDrafts().find((d) => d.name === name) ?? null;
+  const found = listDrafts().find((d) => d.name === name) ?? null;
+  return found ? normalizeDocument(found) : null;
 }
 
 export function deleteDraft(name: string): void {

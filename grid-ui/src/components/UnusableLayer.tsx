@@ -1,7 +1,6 @@
 import React, { useMemo } from 'react';
 import type { UnusableRegion } from '../types/geometry';
 import { FINEST_PER_A } from '../geometry/grid';
-import { cellsToMergedRects } from '../geometry/cellMerge';
 
 interface UnusableLayerProps {
   regions: UnusableRegion[];
@@ -14,23 +13,38 @@ const UnusableLayer: React.FC<UnusableLayerProps> = ({ regions, a }) => {
   const prepared = useMemo(
     () =>
       regions.map((region) => {
-        const rects = cellsToMergedRects(region.cells, f);
-        let minX = Infinity;
-        let minY = Infinity;
-        let maxX = -Infinity;
-        let maxY = -Infinity;
-        for (const r of rects) {
-          minX = Math.min(minX, r.x);
-          minY = Math.min(minY, r.y);
-          maxX = Math.max(maxX, r.x + r.width);
-          maxY = Math.max(maxY, r.y + r.height);
+        const x = region.origin.col * f;
+        const y = region.origin.row * f;
+        const width = region.widthCells * f;
+        const height = region.heightCells * f;
+        const cx = x + width / 2;
+        const cy = y + height / 2;
+        if (!region.outline || region.outline.length < 3) {
+          return {
+            id: region.id,
+            label: region.label,
+            kind: 'rect' as const,
+            x,
+            y,
+            width,
+            height,
+            cx,
+            cy,
+          };
         }
+        const pts = region.outline
+          .map(
+            (v) =>
+              `${(region.origin.col + v.col) * f},${(region.origin.row + v.row) * f}`,
+          )
+          .join(' ');
         return {
           id: region.id,
           label: region.label,
-          rects,
-          cx: (minX + maxX) / 2,
-          cy: (minY + maxY) / 2,
+          kind: 'poly' as const,
+          pts,
+          cx,
+          cy,
         };
       }),
     [regions, f],
@@ -54,18 +68,23 @@ const UnusableLayer: React.FC<UnusableLayerProps> = ({ regions, a }) => {
       </defs>
       {prepared.map((region) => (
         <g key={region.id}>
-          {region.rects.map((r, i) => (
+          {region.kind === 'rect' ? (
             <rect
-              key={`${region.id}-${i}`}
-              x={r.x}
-              y={r.y}
-              width={r.width}
-              height={r.height}
+              x={region.x}
+              y={region.y}
+              width={region.width}
+              height={region.height}
               fill="url(#unusable-hatch)"
               className="unusable-cell"
             />
-          ))}
-          {region.label && region.rects.length > 0 && (
+          ) : (
+            <polygon
+              points={region.pts}
+              fill="url(#unusable-hatch)"
+              className="unusable-cell"
+            />
+          )}
+          {region.label && (
             <g transform={`translate(${region.cx}, ${region.cy}) scale(1, -1)`}>
               <text
                 textAnchor="middle"
