@@ -17,7 +17,7 @@ The application separates **World Space** (mathematical coordinates of the room)
 
 ### 1.2 Coordinate Conversion Formulas
 
-Coordinate transformations are defined in [`coordinates.ts`](file:///home/vinay-dhiman/problems/floor_mapping/grid-ui/src/geometry/coordinates.ts):
+Coordinate transformations are defined in [`coordinates.ts`]:
 
 - **World to Screen**:
   $$\text{screen.x} = \text{world.x} \cdot \text{zoom} + \text{panX}$$
@@ -29,15 +29,15 @@ Coordinate transformations are defined in [`coordinates.ts`](file:///home/vinay-
 
 - **SVG Matrix Transform String**:
     ```ts
-    `translate(${viewport.panX}, ${viewport.panY}) scale(${viewport.zoom}, ${-viewport.zoom})`;
+    translate(${viewport.panX}, ${viewport.panY}) scale(${viewport.zoom}, ${-viewport.zoom});
     ```
-    _(Note the negative scaling factor `-zoom` which flips the $Y$-axis so world $+Y$ points up)._
+    (Note the negative scaling factor `-zoom` which flips the $Y$-axis so world $+Y$ points up).
 
 ---
 
 ## 2. Multi-Tier Grid Hierarchy
 
-The grid operates across 4 named levels defined in [`grid.ts`](file:///home/vinay-dhiman/problems/floor_mapping/grid-ui/src/geometry/grid.ts):
+The grid operates across 4 named levels defined in [`grid.ts`]:
 
 | Named Level  | Grid Size | Purpose                                                                                                                   |
 | :----------- | :-------- | :------------------------------------------------------------------------------------------------------------------------ |
@@ -88,7 +88,7 @@ As the user zooms in or out, the active visible grid level adjusts automatically
 
 ## 4. Document Persistence & JSON Schema (`FloorDocument` v2)
 
-Floor plans are saved and restored as JSON documents formatted according to `FloorDocument` v2 ([`drafts.ts`](file:///home/vinay-dhiman/problems/floor_mapping/grid-ui/src/lib/drafts.ts)).
+Floor plans are saved and restored as JSON documents formatted according to `FloorDocument` v2 [`drafts.ts`].
 
 ### 4.1 Schema Specification
 
@@ -163,8 +163,7 @@ export type Entity = {
   $$\text{newOrigin.row} = \text{round}(C_y - \text{newHeight} / 2)$$
 - **Polygons**: Transforms relative cell coordinates $(c, r)$ via:
   $$c' = r, \quad r' = w - 1 - c$$
-  Re-normalizes coordinates and recalculates the outline SVG path using [`cellsToSvgPath`](file:///home/vinay-dhiman/problems/floor_mapping/grid-ui/src/geometry/footprint.ts).
-
+  Re-normalizes coordinates and recalculates the outline SVG path using [`cellsToSvgPath`].
 ### 5.3 Boundary Tracing Algorithm (`outlineGridCells`)
 
 Generates a clean vector boundary string around arbitrary contiguous finest grid cells:
@@ -198,7 +197,7 @@ Generates a clean vector boundary string around arbitrary contiguous finest grid
 
 ## 7. High-Resolution Export Engine
 
-Defined in [`export.ts`](file:///home/vinay-dhiman/problems/floor_mapping/grid-ui/src/lib/export.ts):
+Defined in [`export.ts`]:
 
 ### 7.1 Export Formats
 
@@ -210,18 +209,8 @@ Defined in [`export.ts`](file:///home/vinay-dhiman/problems/floor_mapping/grid-u
 
 ## 8. State History (Undo / Redo)
 
-Managed via custom hook [`useHistory`](file:///home/vinay-dhiman/problems/floor_mapping/grid-ui/src/hooks/useHistory.ts):
+Managed via custom hook [`useHistory`]:
 
 - Stores undo/redo state stacks of `FloorDocument`.
 - Implements `undo()` and `redo()` with keyboard shortcuts (`Ctrl+Z`, `Ctrl+Y` / `Cmd+Shift+Z`).
 
----
-
-## 9. Summary of Key File Locations
-
-- **Document Types & Schemas**: [`drafts.ts`](file:///home/vinay-dhiman/problems/floor_mapping/grid-ui/src/lib/drafts.ts), [`geometry.ts`](file:///home/vinay-dhiman/problems/floor_mapping/grid-ui/src/types/geometry.ts)
-- **Coordinate & Camera Math**: [`coordinates.ts`](file:///home/vinay-dhiman/problems/floor_mapping/grid-ui/src/geometry/coordinates.ts)
-- **Grid Hierarchy**: [`grid.ts`](file:///home/vinay-dhiman/problems/floor_mapping/grid-ui/src/geometry/grid.ts)
-- **Entity Geometry & Polygon Algorithms**: [`entities.ts`](file:///home/vinay-dhiman/problems/floor_mapping/grid-ui/src/geometry/entities.ts), [`footprint.ts`](file:///home/vinay-dhiman/problems/floor_mapping/grid-ui/src/geometry/footprint.ts)
-- **Export Pipeline**: [`export.ts`](file:///home/vinay-dhiman/problems/floor_mapping/grid-ui/src/lib/export.ts)
-- **Main Canvas Editor UI**: [`FloorEditor.tsx`](file:///home/vinay-dhiman/problems/floor_mapping/grid-ui/src/components/FloorEditor.tsx)
