@@ -25,7 +25,10 @@ dist-ssr
 *.sln
 *.sw?
 
-prompt.md
-approach.txt
 grid-ui-coordinates
 floor-images/*.html
+*.txt
+*.md
+!README.md
+!document.md
+!FEATURES.txt
