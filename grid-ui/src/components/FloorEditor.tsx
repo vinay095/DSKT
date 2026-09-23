@@ -810,18 +810,18 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
         );
         if (remaining.length === 0) return [];
         const components = splitIntoConnectedComponents(remaining);
-        return components
-          .map((comp, idx) => {
-            const compact = compactFromCells(comp);
-            if (!compact) return null;
-            return {
-              id: idx === 0 ? r.id : createId('unusable'),
-              label: r.label,
-              color: r.color,
-              ...compact,
-            };
-          })
-          .filter((sub): sub is UnusableRegion => sub != null);
+        const next: UnusableRegion[] = [];
+        for (let idx = 0; idx < components.length; idx++) {
+          const compact = compactFromCells(components[idx]);
+          if (!compact) continue;
+          next.push({
+            id: idx === 0 ? r.id : createId('unusable'),
+            label: r.label,
+            ...(r.color !== undefined ? { color: r.color } : {}),
+            ...compact,
+          });
+        }
+        return next;
       }),
     );
     setSelectedCells([]);
