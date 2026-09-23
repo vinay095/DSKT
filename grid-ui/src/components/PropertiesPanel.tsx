@@ -8,12 +8,29 @@ interface PropertiesPanelProps {
   onUpdateSelected: (patch: Partial<Entity>) => void;
   zones: FloorZone[];
   onDeleteZone: (id: string) => void;
+  onUpdateZone: (id: string, patch: Partial<FloorZone>) => void;
   unusableRegions: UnusableRegion[];
   onLabelUnusableRegion: (id: string) => void;
   onDeleteUnusableRegion: (id: string) => void;
   onExportJson: () => void;
   onCopyJson: () => void;
   onImportJson: (file: File) => void;
+}
+
+function rgbaToHex(color: string): string {
+  const m = color.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+  if (!m) return '#3b82f6';
+  const toHex = (n: number) => n.toString(16).padStart(2, '0');
+  return `#${toHex(Number(m[1]))}${toHex(Number(m[2]))}${toHex(Number(m[3]))}`;
+}
+
+function hexToZoneRgba(hex: string): string {
+  const h = hex.replace('#', '');
+  if (h.length !== 6) return 'rgba(59, 130, 246, 0.14)';
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, 0.14)`;
 }
 
 const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
@@ -23,6 +40,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   onUpdateSelected,
   zones,
   onDeleteZone,
+  onUpdateZone,
   unusableRegions,
   onLabelUnusableRegion,
   onDeleteUnusableRegion,
@@ -149,9 +167,35 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         <ul className="zone-list">
           {zones.map((z) => (
             <li key={z.id} className="zone-list-item">
-              <span className="zone-swatch" style={{ background: z.color }} title={z.label} />
-              <span>{z.label}</span>
-              <button type="button" className="toolbar-btn ghost" onClick={() => onDeleteZone(z.id)}>
+              <label className="zone-swatch-wrap" title={z.locked ? 'Unlock to change color' : 'Change color'}>
+                <span className="zone-swatch" style={{ background: z.color }} />
+                <input
+                  type="color"
+                  value={rgbaToHex(z.color)}
+                  disabled={Boolean(z.locked)}
+                  onChange={(e) =>
+                    onUpdateZone(z.id, { color: hexToZoneRgba(e.target.value) })
+                  }
+                  aria-label={`Color for ${z.label}`}
+                />
+              </label>
+              <span>
+                {z.label}
+                {z.locked ? ' (locked)' : ''}
+              </span>
+              <button
+                type="button"
+                className="toolbar-btn ghost"
+                onClick={() => onUpdateZone(z.id, { locked: !z.locked })}
+              >
+                {z.locked ? 'Unlock' : 'Lock'}
+              </button>
+              <button
+                type="button"
+                className="toolbar-btn ghost"
+                disabled={Boolean(z.locked)}
+                onClick={() => onDeleteZone(z.id)}
+              >
                 Delete
               </button>
             </li>

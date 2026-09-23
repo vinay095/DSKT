@@ -98,6 +98,8 @@ export type Entity = {
   fontSize?: number;
   /** Grid level used when this entity was placed; footprint stays locked after zoom. */
   placeLevel?: PlaceLevel;
+  /** When true, entity cannot be moved, rotated, resized, or deleted until unlocked. */
+  locked?: boolean;
 };
 
 export type FloorZone = {
@@ -112,6 +114,8 @@ export type FloorZone = {
   outline?: OutlineVertex[];
   /** @deprecated absolute finest cells; migrated to origin/outline on load */
   cells?: GridCell[];
+  /** When true, zone cannot be deleted or recolored until unlocked. */
+  locked?: boolean;
 };
 
 export type UnusableRegion = {

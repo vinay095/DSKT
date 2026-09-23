@@ -9,7 +9,6 @@ import type {
   CatalogCategory,
   CellRef,
   CustomLibraryEntry,
-  EditorTool,
   Entity,
   FloorConfig,
   FloorZone,
@@ -210,7 +209,8 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [includeGridOnExport, setIncludeGridOnExport] = useState(true);
   const [theme, setTheme] = useState<'dark' | 'light'>('light');
-  const [tool, setTool] = useState<EditorTool>('select');
+  const [selectEnabled, setSelectEnabled] = useState(true);
+  const [panEnabled, setPanEnabled] = useState(false);
   const [placeItem, setPlaceItem] = useState<LibraryItem | null>(null);
   const [cursorWorld, setCursorWorld] = useState<Point>({ x: 0, y: 0 });
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -518,7 +518,6 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
         setSelectedIds([entity.objectId]);
         setSelectedCells([]);
         setPlaceItem(null);
-        setTool('select');
         setShowEntityMenu(true);
       };
 
@@ -530,7 +529,6 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
         });
         if (!textVal?.trim()) {
           setPlaceItem(null);
-          setTool('select');
           return;
         }
         const fontSize = item.defaultFontSize ?? 0.6;
@@ -722,8 +720,17 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
       showToast('No entities in the selection.');
       return;
     }
-    const drop = new Set(hit.map((e) => e.objectId));
+    const locked = hit.filter((e) => e.locked);
+    const unlocked = hit.filter((e) => !e.locked);
+    if (unlocked.length === 0) {
+      showToast('All entities in the selection are locked.');
+      return;
+    }
+    const drop = new Set(unlocked.map((e) => e.objectId));
     setEntities(entitiesRef.current.filter((ent) => !drop.has(ent.objectId)));
+    if (locked.length > 0) {
+      showToast(`Deleted ${unlocked.length}; skipped ${locked.length} locked.`);
+    }
     setSelectedCells([]);
     setShowEntityMenu(false);
   }, [selectedCells, a, setEntities, showToast]);
@@ -841,14 +848,25 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
   const handleDeleteSelected = useCallback(() => {
     if (selectedIdsRef.current.length === 0) return;
     const drop = new Set(selectedIdsRef.current);
+    const locked = entitiesRef.current.filter(
+      (ent) => drop.has(ent.objectId) && ent.locked,
+    );
+    if (locked.length > 0) {
+      showToast('Unlock entities before deleting.');
+      return;
+    }
     setEntities(entitiesRef.current.filter((ent) => !drop.has(ent.objectId)));
     setSelectedIds([]);
     setShowEntityMenu(false);
-  }, [setEntities]);
+  }, [setEntities, showToast]);
 
   const handleRotate = useCallback(() => {
     if (selectedEntities.length !== 1) return;
     const e = selectedEntities[0];
+    if (e.locked) {
+      showToast('Unlock the entity before rotating.');
+      return;
+    }
     if (e.category === 'text') return;
     const next = rotateEntity90CCW(e);
     if (!entityFitsFloor(next)) {
@@ -859,6 +877,26 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
       entitiesRef.current.map((ent) => (ent.objectId === e.objectId ? next : ent)),
     );
   }, [selectedEntities, setEntities, entityFitsFloor, showToast]);
+
+  const handleLockSelected = useCallback(() => {
+    if (selectedEntities.length !== 1) return;
+    const id = selectedEntities[0].objectId;
+    setEntities(
+      entitiesRef.current.map((ent) =>
+        ent.objectId === id ? { ...ent, locked: true } : ent,
+      ),
+    );
+  }, [selectedEntities, setEntities]);
+
+  const handleUnlockSelected = useCallback(() => {
+    if (selectedEntities.length !== 1) return;
+    const id = selectedEntities[0].objectId;
+    setEntities(
+      entitiesRef.current.map((ent) =>
+        ent.objectId === id ? { ...ent, locked: false } : ent,
+      ),
+    );
+  }, [selectedEntities, setEntities]);
 
   const selectedIdsRef = useRef(selectedIds);
   useEffect(() => {
@@ -881,7 +919,6 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
         setSelectedIds([]);
         setSelectedCells([]);
         setPlaceItem(null);
-        setTool('select');
         setMarqueeRect(null);
         setShowEntityMenu(false);
         dragRef.current = null;
@@ -908,10 +945,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIdsRef.current.length > 0) {
         if (typing) return;
         e.preventDefault();
-        const drop = new Set(selectedIdsRef.current);
-        setEntities(entitiesRef.current.filter((ent) => !drop.has(ent.objectId)));
-        setSelectedIds([]);
-        setShowEntityMenu(false);
+        handleDeleteSelected();
       }
 
       if (
@@ -938,9 +972,14 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
         if (e.key === 'ArrowUp') dRow = delta;
 
         const idSet = new Set(selectedIdsRef.current);
+        const movable = entitiesRef.current.filter(
+          (ent) => idSet.has(ent.objectId) && !ent.locked,
+        );
+        if (movable.length === 0) return;
+        const moveIds = new Set(movable.map((e) => e.objectId));
         setEntities(
           entitiesRef.current.map((ent) =>
-            idSet.has(ent.objectId) ? translateEntity(ent, dCol, dRow) : ent,
+            moveIds.has(ent.objectId) ? translateEntity(ent, dCol, dRow) : ent,
           ),
         );
       }
@@ -954,7 +993,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [setEntities, handleCopy, handlePaste, snapSizeWorld, finestSize, placementSize]);
+  }, [setEntities, handleCopy, handlePaste, handleDeleteSelected, snapSizeWorld, finestSize, placementSize]);
 
   const applyPolygonResize = (
     origin: Entity,
@@ -997,6 +1036,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
     if (e.button !== 0) return;
     e.stopPropagation();
     if (placeItem) return;
+    if (!selectEnabled) return;
 
     const world = clientToWorld(e.clientX, e.clientY);
     let ids = selectedIds;
@@ -1012,19 +1052,32 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
     }
     setShowEntityMenu(true);
 
+    const target = entitiesRef.current.find((ent) => ent.objectId === id);
+    if (target?.locked) {
+      movedRef.current = false;
+      dragRef.current = null;
+      return;
+    }
+
+    const moveIds = ids.filter((oid) => {
+      const ent = entitiesRef.current.find((x) => x.objectId === oid);
+      return ent && !ent.locked;
+    });
+    if (moveIds.length === 0) return;
+
     movedRef.current = false;
     dragRef.current = {
       type: 'move',
       startWorld: world,
       originEntities: entitiesRef.current.map((ent) => cloneEntity(ent, ent.objectId)),
-      ids,
+      ids: moveIds,
     };
   };
 
   const handleHandleDown = (handle: ResizeHandle, e: React.MouseEvent) => {
     if (selectedEntities.length !== 1) return;
     const ent = selectedEntities[0];
-    if (!isPolygonEntity(ent)) return;
+    if (!isPolygonEntity(ent) || ent.locked) return;
     movedRef.current = false;
     dragRef.current = {
       type: 'resize',
@@ -1045,14 +1098,10 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
       return;
     }
 
-    const hit = hitTestEntity(entitiesRef.current, world, a);
-    const wantPan =
-      e.button === 1 ||
-      tool === 'pan' ||
-      spaceHeld ||
-      (e.button === 0 && !e.ctrlKey && !e.metaKey && !hit);
+    const hit = selectEnabled ? hitTestEntity(entitiesRef.current, world, a) : null;
 
-    if (e.ctrlKey || e.metaKey) {
+    // Ctrl/Cmd+drag cell marquee only when Select is on
+    if (selectEnabled && (e.ctrlKey || e.metaKey)) {
       dragRef.current = {
         type: 'marquee',
         startWorld: world,
@@ -1062,6 +1111,15 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
       setMarqueeRect({ x: world.x, y: world.y, width: 0, height: 0 });
       return;
     }
+
+    const panAllowed =
+      panEnabled || spaceHeld || e.button === 1;
+    // Empty-canvas left drag pans only when Pan is enabled (or Space / middle)
+    const wantPan =
+      panAllowed &&
+      (e.button === 1 ||
+        spaceHeld ||
+        (e.button === 0 && panEnabled && !e.ctrlKey && !e.metaKey && !hit));
 
     if (wantPan) {
       e.preventDefault();
@@ -1074,6 +1132,18 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
         worldAtStart: world,
         shift: e.shiftKey,
       };
+      return;
+    }
+
+    // Select-only: empty drag starts cell marquee (no Ctrl required)
+    if (selectEnabled && e.button === 0 && !hit) {
+      dragRef.current = {
+        type: 'marquee',
+        startWorld: world,
+        currentWorld: world,
+        additive: e.shiftKey,
+      };
+      setMarqueeRect({ x: world.x, y: world.y, width: 0, height: 0 });
     }
   };
 
@@ -1137,7 +1207,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
     dragRef.current = null;
 
     if (drag?.type === 'pan') {
-      if (!movedRef.current) {
+      if (!movedRef.current && selectEnabled) {
         const cell = worldToCell(drag.worldAtStart, gridLevel, a);
         if (isCellOnFloor(cell, floor)) {
           if (!drag.shift) setSelectedIds([]);
@@ -1149,12 +1219,22 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
     }
 
     if (drag?.type === 'marquee') {
+      if (!selectEnabled) {
+        setMarqueeRect(null);
+        return;
+      }
       const rect = worldRectFromPoints(drag.startWorld, drag.currentWorld);
       setMarqueeRect(null);
       if (rect.width * viewport.zoom < CLICK_PX && rect.height * viewport.zoom < CLICK_PX) {
+        // Click without drag: select single cell under cursor
+        const cell = worldToCell(drag.startWorld, gridLevel, a);
+        if (isCellOnFloor(cell, floor)) {
+          setSelectedCells((prev) => mergeCells(prev, [cell], drag.additive));
+          if (!drag.additive) setSelectedIds([]);
+          setShowEntityMenu(false);
+        }
         return;
       }
-      // Ctrl+drag always selects cells (zones / unusable / polygons over entities).
       const cells = cellsInWorldRect(rect, gridLevel, a, floor);
       setSelectedCells((prev) => mergeCells(prev, cells, drag.additive));
       if (!drag.additive) setSelectedIds([]);
@@ -1261,7 +1341,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
   }, [viewport, svgSize, gridCellSize, a, floor]);
 
   const cursorStyle =
-    tool === 'pan' || spaceHeld ? 'grab' : placeItem ? 'crosshair' : 'default';
+    panEnabled || spaceHeld ? 'grab' : placeItem ? 'crosshair' : 'default';
 
   const singleSelected = selectedEntities.length === 1 ? selectedEntities[0] : null;
 
@@ -1367,7 +1447,8 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
     <div className="editor-layout">
       <Toolbar
         viewport={viewport}
-        tool={tool === 'place' ? 'select' : tool}
+        selectEnabled={selectEnabled}
+        panEnabled={panEnabled}
         showGrid={showGrid}
         snapEnabled={snapEnabled}
         includeGridOnExport={includeGridOnExport}
@@ -1376,8 +1457,12 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
         canRedo={canRedo}
         canPaste={clipboard.length > 0}
         canDelete={selectedIds.length > 0}
-        onTool={(t) => {
-          setTool(t);
+        onToggleSelect={() => {
+          setSelectEnabled((v) => !v);
+          setPlaceItem(null);
+        }}
+        onTogglePan={() => {
+          setPanEnabled((v) => !v);
           setPlaceItem(null);
         }}
         onZoomIn={handleZoomIn}
@@ -1408,7 +1493,6 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
           activeId={placeItem?.id ?? null}
           onSelect={(item) => {
             setPlaceItem(item);
-            setTool('place');
           }}
           onDeleteCustom={(id) =>
             setCustomLibrary((prev) => deleteCustomLibraryEntry(prev, id))
@@ -1490,7 +1574,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
                 colorFor={colorFor}
                 onEntityPointerDown={handleEntityPointerDown}
               />
-              {singleSelected && isPolygonEntity(singleSelected) && (
+              {singleSelected && isPolygonEntity(singleSelected) && !singleSelected.locked && (
                 <ResizeHandles
                   entity={singleSelected}
                   a={a}
@@ -1552,13 +1636,16 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
             />
           )}
 
-          {entityMenuPos && (
+          {entityMenuPos && singleSelected && (
             <EntityActionMenu
               x={entityMenuPos.x}
               y={entityMenuPos.y}
+              locked={Boolean(singleSelected.locked)}
               onCopy={handleCopy}
               onRotate={handleRotate}
               onDelete={handleDeleteSelected}
+              onLock={handleLockSelected}
+              onUnlock={handleUnlockSelected}
               onClose={() => setShowEntityMenu(false)}
             />
           )}
@@ -1595,7 +1682,14 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
           selected={selectedEntities}
           onUpdateSelected={handleUpdateSelected}
           zones={zones}
-          onDeleteZone={(id) => setZones((prev) => prev.filter((z) => z.id !== id))}
+          onDeleteZone={(id) =>
+            setZones((prev) => prev.filter((z) => z.id !== id || Boolean(z.locked)))
+          }
+          onUpdateZone={(id, patch) =>
+            setZones((prev) =>
+              prev.map((z) => (z.id === id ? { ...z, ...patch } : z)),
+            )
+          }
           unusableRegions={unusableRegions}
           onLabelUnusableRegion={(id) => {
             void (async () => {

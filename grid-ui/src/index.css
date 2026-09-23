@@ -543,6 +543,27 @@ body,
   flex-shrink: 0;
 }
 
+.zone-swatch-wrap {
+  position: relative;
+  display: inline-flex;
+  cursor: pointer;
+}
+
+.zone-swatch-wrap input[type='color'] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+
+.zone-swatch-wrap input[type='color']:disabled {
+  cursor: not-allowed;
+}
+
 .radio-row {
   display: flex;
   align-items: center;

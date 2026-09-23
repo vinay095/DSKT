@@ -51,12 +51,14 @@ const HowToUseModal: React.FC<HowToUseModalProps> = ({ open, onClose }) => {
             <h3>Canvas navigation</h3>
             <ul>
               <li>
-                First quadrant only: cannot pan into x &lt; 0 or y &lt; 0. Outside the designated
-                floor is grayed and not placeable.
+                <strong>Select</strong> and <strong>Pan</strong> are independent toggles. Enable one
+                or both. With only Select: drag to select cells / entities (no pan). With only Pan:
+                drag to pan (no selection). Enable both to pan empty canvas and select at the same
+                time. Hold Space to pan temporarily.
               </li>
               <li>
-                <strong>Pan</strong> - drag empty canvas (or Space / Pan tool). Space works normally
-                inside text fields.
+                First quadrant only: cannot pan into x &lt; 0 or y &lt; 0. Outside the designated
+                floor is grayed and not placeable.
               </li>
               <li>
                 <strong>Zoom</strong> - scroll or pinch. <strong>Fit</strong> pins (0,0) at
@@ -73,8 +75,8 @@ const HowToUseModal: React.FC<HowToUseModalProps> = ({ open, onClose }) => {
                 occupied cells only; <strong>Preview</strong> draws SVGs.
               </li>
               <li>
-                After place: Copy / Rotate 90° CCW / Delete. Catalog and custom polygons place at the
-                current selectable grid level (ghost preview follows the cursor).
+                After place: Copy / Rotate 90° CCW / Lock / Delete. Locked entities show only Unlock
+                and cannot be moved. Zones: change color or Lock in the Properties panel.
               </li>
             </ul>
           </section>

@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import type { Viewport } from '../types/viewport';
-import type { EditorTool } from '../types/geometry';
 import { listDrafts } from '../lib/drafts';
 
 interface ToolbarProps {
   viewport: Viewport;
-  tool: EditorTool;
+  selectEnabled: boolean;
+  panEnabled: boolean;
   showGrid: boolean;
   snapEnabled: boolean;
   includeGridOnExport: boolean;
@@ -14,7 +14,8 @@ interface ToolbarProps {
   canRedo: boolean;
   canPaste: boolean;
   canDelete: boolean;
-  onTool: (tool: EditorTool) => void;
+  onToggleSelect: () => void;
+  onTogglePan: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onFitFloor: () => void;
@@ -38,7 +39,8 @@ interface ToolbarProps {
 
 const Toolbar: React.FC<ToolbarProps> = ({
   viewport,
-  tool,
+  selectEnabled,
+  panEnabled,
   showGrid,
   snapEnabled,
   includeGridOnExport,
@@ -47,7 +49,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
   canRedo,
   canPaste,
   canDelete,
-  onTool,
+  onToggleSelect,
+  onTogglePan,
   onZoomIn,
   onZoomOut,
   onFitFloor,
@@ -86,17 +89,17 @@ const Toolbar: React.FC<ToolbarProps> = ({
       <div className="toolbar-group">
         <button
           type="button"
-          className={`toolbar-btn toggle-btn ${tool === 'select' ? 'active' : ''}`}
-          onClick={() => onTool('select')}
-          title="Select"
+          className={`toolbar-btn toggle-btn ${selectEnabled ? 'active' : ''}`}
+          onClick={onToggleSelect}
+          title="Toggle select (can combine with Pan)"
         >
           Select
         </button>
         <button
           type="button"
-          className={`toolbar-btn toggle-btn ${tool === 'pan' ? 'active' : ''}`}
-          onClick={() => onTool('pan')}
-          title="Pan"
+          className={`toolbar-btn toggle-btn ${panEnabled ? 'active' : ''}`}
+          onClick={onTogglePan}
+          title="Toggle pan (can combine with Select)"
         >
           Pan
         </button>
