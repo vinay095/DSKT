@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply selection:bg-brandBlue-500 selection:text-white dark:selection:bg-brandPurple-500 dark:selection:text-white;
+  }
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.light ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #33204c;
+  border-radius: 9999px;
+}
+
+.light ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #4c2d73;
+}
+
+/* Canvas Grid Pattern */
+.light .canvas-grid {
+  background-size: 24px 24px;
+  background-image: 
+    radial-gradient(circle, #cbd5e1 1px, transparent 1px);
+}
+
+.dark .canvas-grid {
+  background-size: 24px 24px;
+  background-image: 
+    radial-gradient(circle, #2a1b40 1px, transparent 1px);
+}
