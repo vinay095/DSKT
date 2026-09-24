@@ -43,6 +43,7 @@ import {
   getVisibleWorldBounds,
   isCellOnFloor,
   levelCellSize,
+  axisLabelMarks,
   worldRectFromPoints,
   worldToCell,
   worldToFinestCell,
@@ -1321,24 +1322,20 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
     const bounds = getVisibleWorldBounds(viewport, svgSize.width, svgSize.height);
     const fw = floorWorldWidth(floor);
     const fh = floorWorldHeight(floor);
-    // Label every current grid cell; thin if denser than ~36px.
-    // Indices are in units of `step` (not `a`) so ticks stay unique when step < a.
+    // Label current-level cell indices; thin by skipping cells (not by changing units).
     const minLabelPx = 36;
-    let step = gridCellSize;
-    while (step * viewport.zoom < minLabelPx && step < a * 4) {
-      step *= 2;
-    }
-    const xs: number[] = [];
-    const ys: number[] = [];
-    const startX = Math.max(0, Math.ceil(bounds.minX / step - 1e-9) * step);
-    for (let x = startX; x <= Math.min(bounds.maxX, fw) + 1e-9; x += step) xs.push(x);
-    const startY = Math.max(0, Math.ceil(bounds.minY / step - 1e-9) * step);
-    for (let y = startY; y <= Math.min(bounds.maxY, fh) + 1e-9; y += step) ys.push(y);
-    // Always include origin when visible
-    if (bounds.minX <= 0 && bounds.maxX >= 0 && !xs.includes(0)) xs.unshift(0);
-    if (bounds.minY <= 0 && bounds.maxY >= 0 && !ys.includes(0)) ys.unshift(0);
-    return { step, xs: xs.slice(0, 60), ys: ys.slice(0, 60) };
-  }, [viewport, svgSize, gridCellSize, a, floor]);
+    const labelEvery = Math.max(
+      1,
+      Math.ceil(minLabelPx / Math.max(1e-9, gridCellSize * viewport.zoom)),
+    );
+    const xs = axisLabelMarks(bounds.minX, Math.min(bounds.maxX, fw), gridCellSize, labelEvery, fw);
+    const ys = axisLabelMarks(bounds.minY, Math.min(bounds.maxY, fh), gridCellSize, labelEvery, fh);
+    return {
+      labelEvery,
+      xs: xs.slice(0, 80),
+      ys: ys.slice(0, 80),
+    };
+  }, [viewport, svgSize, gridCellSize, floor]);
 
   const cursorStyle =
     panEnabled || spaceHeld ? 'grab' : placeItem ? 'crosshair' : 'default';
@@ -1348,6 +1345,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
   const colorFor = (entity: Entity) => colorForEntity(entity, allLibrary);
 
   const cursorCell = worldToFinestCell(cursorWorld, a);
+  const cursorPos = worldToCell(cursorWorld, gridLevel, a);
 
   const selectionHasUnusable = useMemo(() => {
     if (selectedCells.length === 0) return false;
@@ -1592,23 +1590,29 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
               fontFamily="ui-monospace, monospace"
               className="axis-labels"
             >
-              {axisLabels.xs.map((wx) => {
-                const sx = wx * viewport.zoom + viewport.panX;
+              {axisLabels.xs.map((mark) => {
+                const sx = mark.world * viewport.zoom + viewport.panX;
                 const sy = svgSize.height - 10;
                 if (sx < 2 || sx > svgSize.width - 8) return null;
                 return (
-                  <text key={`lx-${wx}`} x={sx} y={sy} textAnchor="middle">
-                    {Math.round(wx / axisLabels.step)}
+                  <text key={`lx-${mark.index}`} x={sx} y={sy} textAnchor="middle">
+                    {mark.index}
                   </text>
                 );
               })}
-              {axisLabels.ys.map((wy) => {
+              {axisLabels.ys.map((mark) => {
                 const sx = 10;
-                const sy = -wy * viewport.zoom + viewport.panY;
+                const sy = -mark.world * viewport.zoom + viewport.panY;
                 if (sy < 10 || sy > svgSize.height - 14) return null;
                 return (
-                  <text key={`ly-${wy}`} x={sx} y={sy} textAnchor="start" dominantBaseline="middle">
-                    {Math.round(wy / axisLabels.step)}
+                  <text
+                    key={`ly-${mark.index}`}
+                    x={sx}
+                    y={sy}
+                    textAnchor="start"
+                    dominantBaseline="middle"
+                  >
+                    {mark.index}
                   </text>
                 );
               })}
@@ -1661,6 +1665,9 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
           <div className="status-bar">
             <span>
               cell ({Math.max(0, cursorCell.col)}, {Math.max(0, cursorCell.row)})
+            </span>
+            <span>
+              pos ({Math.max(0, cursorPos.col)}, {Math.max(0, cursorPos.row)})
             </span>
             <span>
               a={floor.a} · cell {gridCellSize.toFixed(2)} · L{gridLevel} · place L{gridLevel}

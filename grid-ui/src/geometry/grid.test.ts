@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   FINEST_PER_A,
+  axisLabelMarks,
   cellKey,
   cellToWorldRect,
   getBaseUnit,
@@ -105,5 +106,27 @@ describe('cellKey / isSameCell', () => {
 describe('getVisibleLinePositions', () => {
   it('covers the given range from first quadrant', () => {
     expect(getVisibleLinePositions(0, 10, 4)).toEqual([0, 4, 8, 12]);
+  });
+});
+
+describe('axisLabelMarks', () => {
+  it('labels current-level cell indices with stride labelEvery', () => {
+    const cellSize = 0.25; // a/4 when a=1
+    const floorExtent = 32; // 128 cells of size 0.25
+    const marks = axisLabelMarks(0, 8, cellSize, 4, floorExtent);
+    expect(marks.map((m) => m.index)).toEqual([0, 4, 8, 12, 16, 20, 24, 28, 32].filter((i) => i * cellSize <= 8));
+    expect(marks.every((m) => Math.abs(m.world - m.index * cellSize) < 1e-9)).toBe(true);
+    // Indices are cell counts, not world/step of a coarser unit
+    expect(marks.map((m) => m.index)).toEqual([0, 4, 8, 12, 16, 20, 24, 28, 32].slice(0, marks.length));
+  });
+
+  it('keeps indices aligned when thinning (no wrong unit)', () => {
+    const cellSize = 1;
+    const marks = axisLabelMarks(0, 128, cellSize, 8, 128);
+    expect(marks[0]).toEqual({ world: 0, index: 0 });
+    expect(marks.map((m) => m.index)).toEqual([
+      0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128,
+    ]);
+    expect(marks.at(-1)?.index).toBe(128);
   });
 });

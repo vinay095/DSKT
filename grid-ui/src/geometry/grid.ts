@@ -229,6 +229,34 @@ export function isSameCell(a: CellRef | null, b: CellRef | null): boolean {
   return a.level === b.level && a.col === b.col && a.row === b.row;
 }
 
+/**
+ * Sparse axis labels in **current-level cell indices**.
+ * Labels sit on cell boundaries; text is the cell index `i` (0, N, 2N, …).
+ * Thinning uses `labelEvery` so on-screen spacing stays readable — the number
+ * always means cell index, never a coarser unit.
+ */
+export function axisLabelMarks(
+  worldMin: number,
+  worldMax: number,
+  cellSize: number,
+  labelEvery: number,
+  floorExtent: number,
+): { world: number; index: number }[] {
+  const every = Math.max(1, Math.floor(labelEvery));
+  const maxIndex = Math.max(0, Math.round(floorExtent / cellSize));
+  const lo = Math.max(0, Math.ceil(worldMin / cellSize - 1e-9));
+  const hi = Math.min(maxIndex, Math.floor(worldMax / cellSize + 1e-9));
+  const marks: { world: number; index: number }[] = [];
+  const start = Math.ceil(lo / every) * every;
+  for (let i = start; i <= hi; i += every) {
+    marks.push({ world: i * cellSize, index: i });
+  }
+  if (lo <= 0 && hi >= 0 && !marks.some((m) => m.index === 0)) {
+    marks.unshift({ world: 0, index: 0 });
+  }
+  return marks;
+}
+
 export function cellsInWorldRect(
   rect: Rect,
   level: NamedGridLevel,
