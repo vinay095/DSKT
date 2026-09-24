@@ -1,5 +1,5 @@
 /**
- * Pure geometry and domain types for the DeskIT Floor-Mapper Engine.
+ * Pure geometry and domain types for the DeskIt Floor-Mapper Engine.
  * All spatial coordinates use clear type signatures to distinguish between
  * World space, Screen space, and Grid Cell spaces.
  */

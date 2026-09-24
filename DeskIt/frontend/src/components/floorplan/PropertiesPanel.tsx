@@ -98,7 +98,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                     {selectedDesk.assignedUserName}
                   </h4>
                   <p className="text-xs text-light-muted dark:text-dark-muted">
-                    {selectedDesk.department || 'Engineering'}
+                    {[selectedDesk.team, selectedDesk.department].filter(Boolean).join(' · ') || 'Unassigned team'}
                   </p>
                 </div>
               </div>

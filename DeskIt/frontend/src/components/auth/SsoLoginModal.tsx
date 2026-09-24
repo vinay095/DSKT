@@ -55,7 +55,7 @@ export const SsoLoginModal: React.FC = () => {
               <Building className="w-7 h-7 text-white" />
             </div>
             <div>
-              <h2 className="text-xl font-bold tracking-tight">DeskIT SSO Portal</h2>
+              <h2 className="text-xl font-bold tracking-tight">DeskIt SSO Portal</h2>
               <p className="text-xs text-blue-100 dark:text-purple-200 mt-0.5">
                 Enterprise Single Sign-On & Access Control
               </p>

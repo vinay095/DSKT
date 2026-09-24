@@ -125,6 +125,7 @@ export const SeatAssignModal: React.FC<SeatAssignModalProps> = ({
                         department: emp.department,
                         title: emp.team,
                         avatar: emp.avatar,
+                        team: emp.team,
                       })
                     }
                     className={`w-full text-left p-2.5 rounded-xl border flex items-center justify-between transition ${

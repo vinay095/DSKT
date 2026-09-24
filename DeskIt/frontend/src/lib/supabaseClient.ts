@@ -1,10 +1,10 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { DbEmployee, DbWorkspace, DbElementType, DbSeatAssignment } from '../types/database';
 import { MOCK_999_EMPLOYEES } from '../data/employeesData';
+import { CATALOG_ITEMS } from './catalog';
 
-const env = (import.meta as any).env || {};
-const supabaseUrl = env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
@@ -12,8 +12,24 @@ export const supabase: SupabaseClient | null = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
 
+export interface SeatAssignmentResult {
+  success: boolean;
+  data?: unknown;
+  error?: unknown;
+}
+
+function catalogCategoryToDb(
+  subcategory: (typeof CATALOG_ITEMS)[number]['subcategory']
+): DbElementType['category'] {
+  if (subcategory === 'desk' || subcategory === 'room' || subcategory === 'plant' || subcategory === 'amenity') {
+    return subcategory;
+  }
+  if (subcategory === 'infrastructure') return 'pillar';
+  return 'amenity';
+}
+
 /**
- * Helper to fetch all employees (from Supabase or local 999 mock dataset fallback)
+ * Helper to fetch all employees (from Supabase or local mock dataset fallback)
  */
 export async function fetchEmployees(): Promise<DbEmployee[]> {
   if (!supabase) {
@@ -85,26 +101,24 @@ export async function fetchWorkspaces(): Promise<DbWorkspace[]> {
 }
 
 /**
- * Helper to fetch element types catalog
+ * Helper to fetch element types catalog (Supabase or local CATALOG_ITEMS fallback)
  */
 export async function fetchElementTypes(): Promise<DbElementType[]> {
   if (!supabase) {
-    return [
-      {
-        element_id: 'elem-desk-single',
-        category: 'desk',
-        element_name: 'Standard Workstation Desk',
-        dimensions: { widthFinest: 8, heightFinest: 6 },
-        associated_ui: { icon: 'Monitor', color: '#3B82F6', description: 'Single monitor desk' },
+    return CATALOG_ITEMS.map((item) => ({
+      element_id: item.id,
+      category: catalogCategoryToDb(item.subcategory),
+      element_name: item.name,
+      dimensions: {
+        widthFinest: item.widthFinestCells,
+        heightFinest: item.heightFinestCells,
       },
-      {
-        element_id: 'elem-desk-standing',
-        category: 'desk',
-        element_name: 'Motorized Standing Desk',
-        dimensions: { widthFinest: 8, heightFinest: 6 },
-        associated_ui: { icon: 'Sparkles', color: '#8B5CF6', description: 'Standing desk with dual monitors' },
+      associated_ui: {
+        icon: item.iconName,
+        color: item.color,
+        description: item.description,
       },
-    ];
+    }));
   }
 
   try {
@@ -119,7 +133,9 @@ export async function fetchElementTypes(): Promise<DbElementType[]> {
 /**
  * Save or insert seat assignment (Permanent or Temporary)
  */
-export async function saveSeatAssignment(assignment: Omit<DbSeatAssignment, 'assignment_id' | 'assigned_at'>) {
+export async function saveSeatAssignment(
+  assignment: Omit<DbSeatAssignment, 'assignment_id' | 'assigned_at'>
+): Promise<SeatAssignmentResult> {
   if (!supabase) {
     console.log('[Mock DB] Saved Seat Assignment:', assignment);
     return { success: true, data: assignment };

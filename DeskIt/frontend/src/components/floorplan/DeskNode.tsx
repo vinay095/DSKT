@@ -8,6 +8,19 @@ interface DeskNodeProps {
   isHighlighted?: boolean;
   onClick?: () => void;
   gridSize?: number;
+  /** When set, desk fill/stroke use team color instead of status palette */
+  teamColor?: string;
+  colorByTeam?: boolean;
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const raw = hex.replace('#', '');
+  const full = raw.length === 3 ? raw.split('').map((c) => c + c).join('') : raw;
+  const n = parseInt(full, 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 export const DeskNode: React.FC<DeskNodeProps> = ({
@@ -16,6 +29,8 @@ export const DeskNode: React.FC<DeskNodeProps> = ({
   isHighlighted,
   onClick,
   gridSize = 48,
+  teamColor,
+  colorByTeam = false,
 }) => {
   const getStatusColor = () => {
     switch (desk.status) {
@@ -53,6 +68,7 @@ export const DeskNode: React.FC<DeskNodeProps> = ({
   const statusStyle = getStatusColor();
   const width = gridSize * 1.8;
   const height = gridSize * 1.2;
+  const useTeamPaint = colorByTeam && Boolean(teamColor);
 
   const empStatusDot = desk.assignedUserStatus
     ? EMPLOYEE_STATUS_CONFIG[desk.assignedUserStatus]?.dotColor || 'bg-emerald-500'
@@ -62,11 +78,8 @@ export const DeskNode: React.FC<DeskNodeProps> = ({
     <g
       transform={`translate(${desk.x * gridSize}, ${desk.y * gridSize}) rotate(${desk.rotation})`}
       onClick={onClick}
-      className={`cursor-pointer transition-all group ${
-        isHighlighted ? 'scale-110' : ''
-      }`}
+      className={`cursor-pointer transition-all group ${isHighlighted ? 'scale-110' : ''}`}
     >
-      {/* Selection Glow */}
       {(isSelected || isHighlighted) && (
         <rect
           x={-4}
@@ -78,29 +91,40 @@ export const DeskNode: React.FC<DeskNodeProps> = ({
         />
       )}
 
-      {/* Desk Main Box */}
       <rect
         x={0}
         y={0}
         width={width}
         height={height}
         rx={8}
-        className={`stroke-2 transition-all ${statusStyle.fill} ${statusStyle.stroke} ${
-          isSelected ? 'stroke-[3px]' : ''
-        } group-hover:stroke-brandBlue-500 dark:group-hover:stroke-brandPurple-400`}
+        className={`stroke-2 transition-all ${
+          useTeamPaint ? '' : `${statusStyle.fill} ${statusStyle.stroke}`
+        } ${isSelected ? 'stroke-[3px]' : ''} group-hover:opacity-90`}
+        style={
+          useTeamPaint
+            ? {
+                fill: hexToRgba(teamColor!, desk.status === 'available' ? 0.12 : 0.35),
+                stroke: teamColor,
+              }
+            : undefined
+        }
       />
 
-      {/* Chair representation */}
+      {/* Team color stripe for quick scan */}
+      {useTeamPaint && (
+        <rect x={0} y={0} width={5} height={height} rx={2} style={{ fill: teamColor }} />
+      )}
+
       <rect
         x={width / 2 - 12}
         y={height + 3}
         width={24}
         height={6}
         rx={3}
-        className={`${statusStyle.stroke} fill-light-card dark:fill-dark-card stroke-2`}
+        className={`${useTeamPaint ? '' : statusStyle.stroke} fill-light-card dark:fill-dark-card stroke-2`}
+        style={useTeamPaint ? { stroke: teamColor } : undefined}
       />
 
-      {/* Employee Status Indicator Dot (6-Color system) */}
       {desk.assignedUserName && (
         <circle
           cx={6}
@@ -110,7 +134,6 @@ export const DeskNode: React.FC<DeskNodeProps> = ({
         />
       )}
 
-      {/* Temporary Seat Clock Indicator Badge */}
       {desk.isTemporary && (
         <g transform={`translate(4, ${height - 12})`}>
           <rect width={22} height={9} rx={3} className="fill-amber-500" />
@@ -120,7 +143,6 @@ export const DeskNode: React.FC<DeskNodeProps> = ({
         </g>
       )}
 
-      {/* Desk Code Label */}
       <text
         x={width / 2}
         y={16}
@@ -130,7 +152,6 @@ export const DeskNode: React.FC<DeskNodeProps> = ({
         {desk.code}
       </text>
 
-      {/* Occupant Name or Status Text */}
       <text
         x={width / 2}
         y={30}
@@ -142,7 +163,17 @@ export const DeskNode: React.FC<DeskNodeProps> = ({
           : desk.status.toUpperCase()}
       </text>
 
-      {/* Small Feature Indicators (Standing Desk / Monitor) */}
+      {colorByTeam && desk.team && (
+        <text
+          x={width / 2}
+          y={height - 6}
+          textAnchor="middle"
+          className="text-[7px] font-bold fill-light-muted dark:fill-dark-muted pointer-events-none"
+        >
+          {desk.team.length > 14 ? `${desk.team.slice(0, 12)}…` : desk.team}
+        </text>
+      )}
+
       <g transform={`translate(${width - 16}, 4)`}>
         {desk.isStandingDesk && (
           <circle cx={4} cy={4} r={3} className="fill-brandBlue-500 dark:fill-brandPurple-400" />

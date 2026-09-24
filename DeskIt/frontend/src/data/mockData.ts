@@ -39,67 +39,6 @@ export const MOCK_USERS: Record<string, User> = {
   }
 };
 
-export const ALL_EMPLOYEES: User[] = [
-  MOCK_USERS.employee,
-  MOCK_USERS.hr,
-  MOCK_USERS.admin,
-  {
-    id: 'usr-4',
-    name: 'David Chen',
-    email: 'david.chen@deskit.io',
-    role: 'employee',
-    department: 'Engineering',
-    title: 'Backend Tech Lead',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
-    assignedDeskId: 'desk-101',
-    floorId: 'floor-4'
-  },
-  {
-    id: 'usr-5',
-    name: 'Elena Rostova',
-    email: 'elena.r@deskit.io',
-    role: 'employee',
-    department: 'Product',
-    title: 'Lead Product Manager',
-    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
-    assignedDeskId: 'desk-102',
-    floorId: 'floor-4'
-  },
-  {
-    id: 'usr-6',
-    name: 'James Wilson',
-    email: 'james.w@deskit.io',
-    role: 'employee',
-    department: 'Design',
-    title: 'Principal UX Architect',
-    avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80',
-    assignedDeskId: 'desk-103',
-    floorId: 'floor-4'
-  },
-  {
-    id: 'usr-7',
-    name: 'Priya Sharma',
-    email: 'priya.s@deskit.io',
-    role: 'employee',
-    department: 'Marketing',
-    title: 'Growth Specialist',
-    avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&auto=format&fit=crop&q=80',
-    assignedDeskId: undefined,
-    floorId: undefined
-  },
-  {
-    id: 'usr-8',
-    name: 'Lucas Thorne',
-    email: 'lucas.t@deskit.io',
-    role: 'employee',
-    department: 'Engineering',
-    title: 'DevOps Specialist',
-    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80',
-    assignedDeskId: undefined,
-    floorId: undefined
-  }
-];
-
 export const DEPARTMENTS: Department[] = [
   { id: 'dept-eng', name: 'Engineering', color: '#3B82F6', headCount: 42, assignedDesks: 38 },
   { id: 'dept-prod', name: 'Product', color: '#8B5CF6', headCount: 18, assignedDesks: 16 },
@@ -152,6 +91,7 @@ export const INITIAL_FLOOR_PLAN: FloorPlan = {
       assignedUserId: 'usr-4',
       assignedUserName: 'David Chen',
       department: 'Engineering',
+      team: 'Backend Services',
       hasMonitor: true,
       isStandingDesk: true,
       geometry: {
@@ -176,6 +116,7 @@ export const INITIAL_FLOOR_PLAN: FloorPlan = {
       assignedUserId: 'usr-5',
       assignedUserName: 'Elena Rostova',
       department: 'Product',
+      team: 'Platform Roadmap',
       hasMonitor: true,
       isStandingDesk: false,
       geometry: {
@@ -200,6 +141,7 @@ export const INITIAL_FLOOR_PLAN: FloorPlan = {
       assignedUserId: 'usr-6',
       assignedUserName: 'James Wilson',
       department: 'Design',
+      team: 'Product Design',
       hasMonitor: true,
       isStandingDesk: true,
     },
@@ -213,6 +155,7 @@ export const INITIAL_FLOOR_PLAN: FloorPlan = {
       assignedUserId: 'usr-1',
       assignedUserName: 'Alex Rivera',
       department: 'Engineering',
+      team: 'Frontend Core',
       hasMonitor: true,
       isStandingDesk: false,
     },
@@ -224,6 +167,7 @@ export const INITIAL_FLOOR_PLAN: FloorPlan = {
       rotation: 0,
       status: 'available',
       department: 'Engineering',
+      team: 'Frontend Core',
       hasMonitor: true,
       isStandingDesk: false,
     },
@@ -235,6 +179,7 @@ export const INITIAL_FLOOR_PLAN: FloorPlan = {
       rotation: 0,
       status: 'available',
       department: 'Engineering',
+      team: 'DevOps & Infra',
       hasMonitor: false,
       isStandingDesk: true,
     },
@@ -248,6 +193,7 @@ export const INITIAL_FLOOR_PLAN: FloorPlan = {
       assignedUserId: 'usr-2',
       assignedUserName: 'Sarah Jenkins',
       department: 'People & Culture',
+      team: 'Workplace Ops',
       hasMonitor: true,
       isStandingDesk: false,
     },
@@ -259,6 +205,7 @@ export const INITIAL_FLOOR_PLAN: FloorPlan = {
       rotation: 0,
       status: 'available',
       department: 'Product',
+      team: 'Core UX/UI',
       hasMonitor: true,
       isStandingDesk: true,
     },
@@ -270,6 +217,7 @@ export const INITIAL_FLOOR_PLAN: FloorPlan = {
       rotation: 0,
       status: 'reserved',
       department: 'Product',
+      team: 'Product Analytics',
       hasMonitor: true,
       isStandingDesk: false,
     },
@@ -281,6 +229,7 @@ export const INITIAL_FLOOR_PLAN: FloorPlan = {
       rotation: 0,
       status: 'available',
       department: 'Product',
+      team: 'Platform Roadmap',
       hasMonitor: true,
       isStandingDesk: false,
     },
@@ -293,7 +242,8 @@ export const INITIAL_FLOOR_PLAN: FloorPlan = {
       status: 'occupied',
       assignedUserId: 'usr-3',
       assignedUserName: 'Marcus Vance',
-      department: 'Facilities & Infrastructure',
+      department: 'People & Culture',
+      team: 'Workplace Ops',
       hasMonitor: true,
       isStandingDesk: true,
     },
@@ -305,6 +255,7 @@ export const INITIAL_FLOOR_PLAN: FloorPlan = {
       rotation: 0,
       status: 'available',
       department: 'People & Culture',
+      team: 'HRBP',
       hasMonitor: true,
       isStandingDesk: false,
     },

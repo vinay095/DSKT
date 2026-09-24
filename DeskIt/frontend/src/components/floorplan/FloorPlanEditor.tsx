@@ -262,7 +262,7 @@ export const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
 
       {/* Main Studio Editor Workspace */}
       <div className="flex-1 flex flex-col lg:flex-row gap-4 min-h-[500px]">
-        {/* DeskIT Design Elements Palette Sidebar */}
+        {/* DeskIt Design Elements Palette Sidebar */}
         <div className="w-full lg:w-72 bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-2xl p-4 shadow-sm flex flex-col justify-between">
           <div className="space-y-4">
             <h3 className="text-xs font-bold uppercase tracking-wider text-light-muted dark:text-dark-muted">

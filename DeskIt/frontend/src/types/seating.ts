@@ -6,15 +6,6 @@ export interface Department {
   assignedDesks: number;
 }
 
-export interface Team {
-  id: string;
-  name: string;
-  departmentId: string;
-  leadName: string;
-  memberCount: number;
-  zoneId?: string;
-}
-
 export interface SeatAssignmentRequest {
   id: string;
   userId: string;
@@ -26,3 +17,4 @@ export interface SeatAssignmentRequest {
   requestDate: string;
   notes?: string;
 }
+

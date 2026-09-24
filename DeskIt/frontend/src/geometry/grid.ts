@@ -1,7 +1,7 @@
 import { CellCoord, FloorConfig, GridLevelName, WorldPoint } from '../types/geometry';
 
 /**
- * Default floor configuration for DeskIT maps.
+ * Default floor configuration for DeskIt maps.
  * cols = 20 base units, rows = 14 base units, base unit 'a' = 64 world units.
  */
 export const DEFAULT_FLOOR_CONFIG: FloorConfig = {

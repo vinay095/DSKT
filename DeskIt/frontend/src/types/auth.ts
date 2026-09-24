@@ -10,12 +10,9 @@ export interface User {
   title: string;
   assignedDeskId?: string;
   floorId?: string;
+  /** Optional team for HR color grouping when assigning seats */
+  team?: string;
 }
 
 export type SsoProvider = 'google' | 'microsoft' | 'okta';
 
-export interface AuthState {
-  user: User | null;
-  isAuthenticated: boolean;
-  ssoProvider: SsoProvider | null;
-}

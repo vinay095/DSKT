@@ -1,14 +1,7 @@
-import { generate999Employees } from '../lib/employeeGenerator';
 import { DbEmployee } from '../types/database';
+import { generate999Employees } from '../lib/employeeGenerator';
 
 export const MOCK_999_EMPLOYEES: DbEmployee[] = generate999Employees();
-
-/**
- * Filter helpers for location counts
- */
-export function getEmployeesByLocation(location: string): DbEmployee[] {
-  return MOCK_999_EMPLOYEES.filter((emp) => emp.locations.includes(location));
-}
 
 export const LOCATION_COUNTS = {
   noida6th: MOCK_999_EMPLOYEES.filter((e) => e.locations.includes('Noida 6th Floor')).length,

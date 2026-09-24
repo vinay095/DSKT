@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useMemo, useState } from 'react';
 import { FloorPlan, DeskElement } from '../../types/floorplan';
 import { useAuth } from '../../context/AuthContext';
 import { useViewport } from '../../hooks/useViewport';
@@ -10,27 +10,38 @@ import { ZonesLayer } from './ZonesLayer';
 import { UnusableLayer } from './UnusableLayer';
 import { PropertiesPanel } from './PropertiesPanel';
 import { DeskNode } from './DeskNode';
+import { DEPARTMENTS } from '../../data/mockData';
+import { TEAMS, getTeamColor, defaultTeamForDepartment } from '../../data/teams';
+import { cn } from '../../lib/cn';
 import {
   ZoomIn,
   ZoomOut,
   RotateCcw,
   Maximize2,
-  Filter
+  Filter,
+  Grid3x3,
+  Palette,
+  Users,
 } from 'lucide-react';
-import { DEPARTMENTS } from '../../data/mockData';
+
+export type MapperColorMode = 'status' | 'team';
 
 interface FloorPlanViewerProps {
   floorPlan: FloorPlan;
   searchQuery?: string;
   onAssignClick?: (desk: DeskElement) => void;
+  /** Enable HR-oriented controls (grid toggle, team colors, click-to-assign). */
+  hrMode?: boolean;
 }
 
 export const FloorPlanViewer: React.FC<FloorPlanViewerProps> = ({
   floorPlan,
   searchQuery = '',
   onAssignClick,
+  hrMode = false,
 }) => {
   const { user } = useAuth();
+  const isHr = hrMode || user?.role === 'hr';
   const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -52,10 +63,12 @@ export const FloorPlanViewer: React.FC<FloorPlanViewerProps> = ({
     floorConfig,
   });
 
-  const [selectedDesk, setSelectedDesk] = React.useState<DeskElement | null>(null);
-  const [selectedDeptFilter, setSelectedDeptFilter] = React.useState<string>('all');
+  const [selectedDesk, setSelectedDesk] = useState<DeskElement | null>(null);
+  const [selectedDeptFilter, setSelectedDeptFilter] = useState<string>('all');
+  const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>('all');
+  const [showGrid, setShowGrid] = useState(true);
+  const [colorMode, setColorMode] = useState<MapperColorMode>(isHr ? 'team' : 'status');
 
-  // Auto fit to container on mount
   useEffect(() => {
     if (containerRef.current) {
       fitToFloor(containerRef.current.clientWidth, containerRef.current.clientHeight || 500);
@@ -65,76 +78,184 @@ export const FloorPlanViewer: React.FC<FloorPlanViewerProps> = ({
   const availableCount = floorPlan.desks.filter((d) => d.status === 'available').length;
   const occupiedCount = floorPlan.desks.filter((d) => d.status === 'occupied').length;
 
+  const teamsOnFloor = useMemo(() => {
+    const names = new Set(
+      floorPlan.desks.map((d) => d.team).filter((t): t is string => Boolean(t))
+    );
+    // Always include known teams for filtering even if not yet assigned
+    return TEAMS.filter((t) => names.has(t.name) || names.size === 0).slice(
+      0,
+      names.size === 0 ? 8 : TEAMS.length
+    );
+  }, [floorPlan.desks]);
+
+  const visibleTeams =
+    selectedDeptFilter === 'all'
+      ? teamsOnFloor
+      : TEAMS.filter((t) => t.departmentName === selectedDeptFilter);
+
+  const resolveDeskTeam = (desk: DeskElement) =>
+    desk.team || defaultTeamForDepartment(desk.department)?.name;
+
+  const handleDeskClick = (desk: DeskElement) => {
+    setSelectedDesk(desk);
+  };
+
   return (
     <div className="flex flex-col lg:flex-row gap-4 h-full">
-      {/* Main Read-Only Viewport Canvas */}
       <div
         ref={containerRef}
         className="flex-1 bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-2xl flex flex-col overflow-hidden shadow-sm min-h-[500px]"
       >
-        {/* Top Controls Toolbar */}
-        <div className="p-3 bg-slate-50 dark:bg-dark-sidebar border-b border-light-border dark:border-dark-border flex flex-wrap items-center justify-between gap-3 z-10">
-          {/* Department Filter Pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto py-1">
-            <span className="text-xs font-bold text-light-muted dark:text-dark-muted flex items-center gap-1 mr-1">
-              <Filter className="w-3.5 h-3.5" /> Filter:
-            </span>
-            <button
-              onClick={() => setSelectedDeptFilter('all')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition ${
-                selectedDeptFilter === 'all'
-                  ? 'bg-brandBlue-600 dark:bg-brandPurple-600 text-white'
-                  : 'bg-white dark:bg-dark-card text-light-text dark:text-dark-text border border-light-border dark:border-dark-border hover:bg-slate-100'
-              }`}
-            >
-              All Desks ({floorPlan.desks.length})
-            </button>
-            {DEPARTMENTS.map((dept) => (
+        {/* Toolbar */}
+        <div className="p-3 bg-slate-50 dark:bg-dark-sidebar border-b border-light-border dark:border-dark-border flex flex-col gap-2.5 z-10">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {/* Department / Team filters */}
+            <div className="flex items-center gap-1.5 overflow-x-auto py-1 max-w-full">
+              <span className="text-xs font-bold text-light-muted dark:text-dark-muted flex items-center gap-1 mr-1 shrink-0">
+                <Filter className="w-3.5 h-3.5" /> Filter:
+              </span>
               <button
-                key={dept.id}
-                onClick={() => setSelectedDeptFilter(dept.name)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
-                  selectedDeptFilter === dept.name
+                type="button"
+                onClick={() => {
+                  setSelectedDeptFilter('all');
+                  setSelectedTeamFilter('all');
+                }}
+                className={cn(
+                  'px-2.5 py-1 rounded-lg text-xs font-semibold transition shrink-0',
+                  selectedDeptFilter === 'all' && selectedTeamFilter === 'all'
                     ? 'bg-brandBlue-600 dark:bg-brandPurple-600 text-white'
                     : 'bg-white dark:bg-dark-card text-light-text dark:text-dark-text border border-light-border dark:border-dark-border hover:bg-slate-100'
-                }`}
+                )}
               >
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: dept.color }} />
-                {dept.name}
+                All Desks ({floorPlan.desks.length})
               </button>
-            ))}
-          </div>
+              {DEPARTMENTS.map((dept) => (
+                <button
+                  key={dept.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedDeptFilter(dept.name);
+                    setSelectedTeamFilter('all');
+                  }}
+                  className={cn(
+                    'px-2.5 py-1 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0',
+                    selectedDeptFilter === dept.name && selectedTeamFilter === 'all'
+                      ? 'bg-brandBlue-600 dark:bg-brandPurple-600 text-white'
+                      : 'bg-white dark:bg-dark-card text-light-text dark:text-dark-text border border-light-border dark:border-dark-border hover:bg-slate-100'
+                  )}
+                >
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: dept.color }} />
+                  {dept.name}
+                </button>
+              ))}
+            </div>
 
-          {/* Viewport Zoom & Pan Controls */}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 bg-white dark:bg-dark-card border border-light-border dark:border-dark-border rounded-lg p-1">
-              <button onClick={zoomOut} className="p-1 hover:bg-slate-100 dark:hover:bg-dark-sidebar rounded text-light-text dark:text-dark-text" title="Zoom Out">
-                <ZoomOut className="w-4 h-4" />
-              </button>
-              <span className="text-xs font-mono font-bold px-1.5 text-light-text dark:text-dark-text min-w-[44px] text-center">
-                {Math.round(viewport.zoom * 100)}%
-              </span>
-              <button onClick={zoomIn} className="p-1 hover:bg-slate-100 dark:hover:bg-dark-sidebar rounded text-light-text dark:text-dark-text" title="Zoom In">
-                <ZoomIn className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() =>
-                  containerRef.current &&
-                  fitToFloor(containerRef.current.clientWidth, containerRef.current.clientHeight || 500)
-                }
-                className="p-1 hover:bg-slate-100 dark:hover:bg-dark-sidebar rounded text-light-text dark:text-dark-text"
-                title="Fit to Floor Boundary"
-              >
-                <Maximize2 className="w-3.5 h-3.5" />
-              </button>
-              <button onClick={resetView} className="p-1 hover:bg-slate-100 dark:hover:bg-dark-sidebar rounded text-light-text dark:text-dark-text" title="Reset View">
-                <RotateCcw className="w-3.5 h-3.5" />
-              </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Grid / team view toggles */}
+              <div className="flex items-center gap-1 bg-white dark:bg-dark-card border border-light-border dark:border-dark-border rounded-lg p-1">
+                <button
+                  type="button"
+                  onClick={() => setShowGrid((v) => !v)}
+                  className={cn(
+                    'inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition',
+                    showGrid
+                      ? 'bg-brandBlue-600 dark:bg-brandPurple-600 text-white'
+                      : 'text-light-text dark:text-dark-text hover:bg-slate-100 dark:hover:bg-dark-sidebar'
+                  )}
+                  title={showGrid ? 'Hide grid layout' : 'Show grid layout'}
+                >
+                  <Grid3x3 className="w-3.5 h-3.5" />
+                  {showGrid ? 'Grid On' : 'Grid Off'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setColorMode((m) => (m === 'team' ? 'status' : 'team'))}
+                  className={cn(
+                    'inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition',
+                    colorMode === 'team'
+                      ? 'bg-brandBlue-600 dark:bg-brandPurple-600 text-white'
+                      : 'text-light-text dark:text-dark-text hover:bg-slate-100 dark:hover:bg-dark-sidebar'
+                  )}
+                  title="Color desks by team"
+                >
+                  <Palette className="w-3.5 h-3.5" />
+                  {colorMode === 'team' ? 'By Team' : 'By Status'}
+                </button>
+              </div>
+
+              <div className="flex items-center gap-1 bg-white dark:bg-dark-card border border-light-border dark:border-dark-border rounded-lg p-1">
+                <button type="button" onClick={zoomOut} className="p-1 hover:bg-slate-100 dark:hover:bg-dark-sidebar rounded text-light-text dark:text-dark-text" title="Zoom Out">
+                  <ZoomOut className="w-4 h-4" />
+                </button>
+                <span className="text-xs font-mono font-bold px-1.5 text-light-text dark:text-dark-text min-w-[44px] text-center">
+                  {Math.round(viewport.zoom * 100)}%
+                </span>
+                <button type="button" onClick={zoomIn} className="p-1 hover:bg-slate-100 dark:hover:bg-dark-sidebar rounded text-light-text dark:text-dark-text" title="Zoom In">
+                  <ZoomIn className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    containerRef.current &&
+                    fitToFloor(containerRef.current.clientWidth, containerRef.current.clientHeight || 500)
+                  }
+                  className="p-1 hover:bg-slate-100 dark:hover:bg-dark-sidebar rounded text-light-text dark:text-dark-text"
+                  title="Fit to Floor Boundary"
+                >
+                  <Maximize2 className="w-3.5 h-3.5" />
+                </button>
+                <button type="button" onClick={resetView} className="p-1 hover:bg-slate-100 dark:hover:bg-dark-sidebar rounded text-light-text dark:text-dark-text" title="Reset View">
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           </div>
+
+          {/* Team filter row (HR / team color mode) */}
+          {(isHr || colorMode === 'team') && (
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-light-muted dark:text-dark-muted flex items-center gap-1 shrink-0">
+                <Users className="w-3 h-3" /> Teams:
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedTeamFilter('all')}
+                className={cn(
+                  'px-2 py-0.5 rounded-md text-[10px] font-semibold transition shrink-0',
+                  selectedTeamFilter === 'all'
+                    ? 'bg-slate-800 text-white dark:bg-brandPurple-700'
+                    : 'bg-white dark:bg-dark-card border border-light-border dark:border-dark-border text-light-muted dark:text-dark-muted'
+                )}
+              >
+                All teams
+              </button>
+              {visibleTeams.map((team) => (
+                <button
+                  key={team.id}
+                  type="button"
+                  onClick={() => setSelectedTeamFilter(team.name)}
+                  className={cn(
+                    'px-2 py-0.5 rounded-md text-[10px] font-semibold transition flex items-center gap-1.5 shrink-0 border',
+                    selectedTeamFilter === team.name
+                      ? 'text-white border-transparent'
+                      : 'bg-white dark:bg-dark-card border-light-border dark:border-dark-border text-light-text dark:text-dark-text'
+                  )}
+                  style={
+                    selectedTeamFilter === team.name
+                      ? { backgroundColor: team.color }
+                      : undefined
+                  }
+                >
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: team.color }} />
+                  {team.name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Read-Only Coordinate Engine Viewport SVG */}
+        {/* SVG viewport */}
         <div className="flex-1 relative overflow-hidden cursor-grab active:cursor-grabbing">
           <svg
             ref={svgRef}
@@ -145,21 +266,12 @@ export const FloorPlanViewer: React.FC<FloorPlanViewerProps> = ({
             onMouseUp={endPan}
             onMouseLeave={endPan}
           >
-            {/* World Coordinate Transformation Container */}
             <g transform={getSvgTransformMatrix(viewport)}>
-              {/* Floor Boundary & Outside Workspace Muting */}
               <FloorBoundary floorConfig={floorConfig} />
-
-              {/* Adaptive Grid Engine */}
-              <Grid floorConfig={floorConfig} zoom={viewport.zoom} showGrid={true} />
-
-              {/* Zones Layer */}
+              <Grid floorConfig={floorConfig} zoom={viewport.zoom} showGrid={showGrid} />
               <ZonesLayer zones={floorPlan.zones} floorConfig={floorConfig} />
-
-              {/* Unusable Regions Layer */}
               <UnusableLayer unusableRegions={floorPlan.unusableRegions || []} floorConfig={floorConfig} />
 
-              {/* Render Meeting Rooms & Amenities */}
               {floorPlan.rooms.map((room) => {
                 const rX = room.x * (floorConfig.a / 4);
                 const rY = room.y * (floorConfig.a / 4);
@@ -188,7 +300,6 @@ export const FloorPlanViewer: React.FC<FloorPlanViewerProps> = ({
                 );
               })}
 
-              {/* Render Wall Dividers */}
               {floorPlan.walls.map((wall) => (
                 <line
                   key={wall.id}
@@ -200,28 +311,38 @@ export const FloorPlanViewer: React.FC<FloorPlanViewerProps> = ({
                 />
               ))}
 
-              {/* Render Desks */}
               {floorPlan.desks.map((desk) => {
                 const isSelected = selectedDesk?.id === desk.id;
                 const isSearched =
                   Boolean(searchQuery) &&
                   (desk.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    Boolean(desk.assignedUserName && desk.assignedUserName.toLowerCase().includes(searchQuery.toLowerCase())));
+                    Boolean(
+                      desk.assignedUserName &&
+                        desk.assignedUserName.toLowerCase().includes(searchQuery.toLowerCase())
+                    ) ||
+                    Boolean(desk.team && desk.team.toLowerCase().includes(searchQuery.toLowerCase())));
 
-                const isDeptFiltered = selectedDeptFilter === 'all' || desk.department === selectedDeptFilter;
-                if (!isDeptFiltered) return null;
+                const deskTeam = resolveDeskTeam(desk);
+                const isDeptFiltered =
+                  selectedDeptFilter === 'all' || desk.department === selectedDeptFilter;
+                const isTeamFiltered =
+                  selectedTeamFilter === 'all' || deskTeam === selectedTeamFilter;
+                if (!isDeptFiltered || !isTeamFiltered) return null;
 
                 const dX = desk.x * (floorConfig.a / 4);
                 const dY = desk.y * (floorConfig.a / 4);
+                const teamColor = getTeamColor(deskTeam);
 
                 return (
                   <g key={desk.id} transform={`translate(${dX}, ${dY})`}>
                     <DeskNode
-                      desk={{ ...desk, x: 0, y: 0 }}
+                      desk={{ ...desk, team: deskTeam, x: 0, y: 0 }}
                       isSelected={isSelected}
                       isHighlighted={isSearched}
-                      onClick={() => setSelectedDesk(desk)}
+                      onClick={() => handleDeskClick(desk)}
                       gridSize={floorConfig.a / 4}
+                      colorByTeam={colorMode === 'team'}
+                      teamColor={teamColor}
                     />
                   </g>
                 );
@@ -230,29 +351,43 @@ export const FloorPlanViewer: React.FC<FloorPlanViewerProps> = ({
           </svg>
         </div>
 
-        {/* Legend Footer */}
-        <div className="p-3 bg-slate-50 dark:bg-dark-sidebar border-t border-light-border dark:border-dark-border flex items-center justify-between text-xs text-light-muted dark:text-dark-muted z-10">
-          <div className="flex items-center gap-4">
-            <span className="flex items-center gap-1.5 font-medium">
-              <span className="w-3 h-3 rounded bg-emerald-500/20 border border-emerald-500" />
-              Available ({availableCount})
-            </span>
-            <span className="flex items-center gap-1.5 font-medium">
-              <span className="w-3 h-3 rounded bg-brandBlue-500/20 dark:bg-brandPurple-500/20 border border-brandBlue-600 dark:border-brandPurple-500" />
-              Occupied ({occupiedCount})
-            </span>
-            <span className="flex items-center gap-1.5 font-medium">
-              <span className="w-3 h-3 rounded bg-amber-500/20 border border-amber-500" />
-              Reserved
-            </span>
-          </div>
+        {/* Legend */}
+        <div className="p-3 bg-slate-50 dark:bg-dark-sidebar border-t border-light-border dark:border-dark-border flex flex-wrap items-center justify-between gap-3 text-xs text-light-muted dark:text-dark-muted z-10">
+          {colorMode === 'team' ? (
+            <div className="flex items-center gap-3 flex-wrap">
+              {visibleTeams.slice(0, 6).map((t) => (
+                <span key={t.id} className="flex items-center gap-1.5 font-medium">
+                  <span className="w-3 h-3 rounded" style={{ backgroundColor: t.color }} />
+                  {t.name}
+                </span>
+              ))}
+              {visibleTeams.length > 6 && (
+                <span className="font-medium opacity-70">+{visibleTeams.length - 6} more</span>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-1.5 font-medium">
+                <span className="w-3 h-3 rounded bg-emerald-500/20 border border-emerald-500" />
+                Available ({availableCount})
+              </span>
+              <span className="flex items-center gap-1.5 font-medium">
+                <span className="w-3 h-3 rounded bg-brandBlue-500/20 dark:bg-brandPurple-500/20 border border-brandBlue-600 dark:border-brandPurple-500" />
+                Occupied ({occupiedCount})
+              </span>
+              <span className="flex items-center gap-1.5 font-medium">
+                <span className="w-3 h-3 rounded bg-amber-500/20 border border-amber-500" />
+                Reserved
+              </span>
+            </div>
+          )}
           <span className="font-mono font-semibold">
-            {floorPlan.building} • {floorPlan.name} ({worldW}x{worldH} World Units)
+            {floorPlan.building} • {floorPlan.name} ({worldW}x{worldH})
+            {!showGrid && ' · No grid'}
           </span>
         </div>
       </div>
 
-      {/* Side Properties Inspector Panel */}
       <PropertiesPanel
         selectedDesk={selectedDesk}
         role={user?.role}

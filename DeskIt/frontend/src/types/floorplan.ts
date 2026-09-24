@@ -34,7 +34,7 @@ export interface UnusableRegion {
 }
 
 /**
- * DeskIT Desk Element combining business data and geometry position.
+ * DeskIt Desk Element combining business data and geometry position.
  */
 export interface DeskElement {
   id: string;
@@ -48,6 +48,8 @@ export interface DeskElement {
   assignedUserAvatar?: string;
   assignedUserStatus?: EmployeeStatusColor;
   department?: string;
+  /** Team label for HR color-grouping on the published mapper */
+  team?: string;
   hasMonitor?: boolean;
   isStandingDesk?: boolean;
   zoneId?: string;
@@ -92,7 +94,7 @@ export interface ZoneElement {
 }
 
 /**
- * Floor Document schema bridging DeskIT business requirements and Floor Mapper geometry.
+ * Floor Document schema bridging DeskIt business requirements and Floor Mapper geometry.
  */
 export interface FloorPlan {
   id: string;

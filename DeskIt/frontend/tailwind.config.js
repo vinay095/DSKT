@@ -28,6 +28,7 @@ export default {
           700: '#1D4ED8',
           800: '#1E40AF',
           900: '#1E3A8A',
+          950: '#172554',
         },
         // Dark Mode Theme (Black & Purple)
         dark: {
@@ -49,6 +50,7 @@ export default {
           700: '#7E22CE',
           800: '#6B21A8',
           900: '#581C87',
+          950: '#3B0764',
         }
       }
     },

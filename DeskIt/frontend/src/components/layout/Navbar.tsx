@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { ThemeToggle } from '../common/ThemeToggle';
 import { RoleBadge } from '../common/RoleBadge';
 import { UserRole } from '../../types/auth';
+import { AVAILABLE_FLOORS } from '../../data/floors';
 import {
   Building2,
   Search,
@@ -45,7 +46,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
           <div className="hidden sm:block">
             <h1 className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-brandBlue-700 to-brandBlue-500 dark:from-brandPurple-400 dark:to-brandPurple-200 bg-clip-text text-transparent">
-              DeskIT
+              DeskIt
             </h1>
             <p className="text-[10px] uppercase font-bold tracking-widest text-light-muted dark:text-dark-muted -mt-1">
               Seating Engine
@@ -62,9 +63,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             onChange={(e) => onFloorChange(e.target.value)}
             className="appearance-none bg-slate-100 dark:bg-dark-sidebar border border-light-border dark:border-dark-border rounded-xl px-3 py-1.5 pr-8 text-xs font-semibold text-light-text dark:text-dark-text focus:outline-none focus:ring-2 focus:ring-brandBlue-500 dark:focus:ring-brandPurple-500 cursor-pointer transition"
           >
-            <option value="floor-4">Floor 4 - Tech & Product Hub</option>
-            <option value="floor-5">Floor 5 - Executive & People Ops</option>
-            <option value="floor-3">Floor 3 - Global Operations</option>
+            {AVAILABLE_FLOORS.map((floor) => (
+              <option key={floor.id} value={floor.id}>
+                {floor.label}
+              </option>
+            ))}
           </select>
           <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-light-muted dark:text-dark-muted" />
         </div>

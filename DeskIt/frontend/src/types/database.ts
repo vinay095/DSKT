@@ -1,5 +1,5 @@
 /**
- * Supabase Database Table Definitions & Schema Types for DeskIT
+ * Supabase Database Table Definitions & Schema Types for DeskIt
  */
 
 export type EmployeeStatusColor = 'white' | 'green' | 'yellow' | 'red' | 'blue' | 'orange';

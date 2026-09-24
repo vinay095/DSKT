@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { FloorPlan, FloorPlanDraft } from '../../types/floorplan';
-import { FloorPlanEditor } from '../floorplan/FloorPlanEditor';
+import { FloorCreatorEmbed } from '../floorplan/FloorCreatorEmbed';
 import { StatCard } from '../common/StatCard';
-import { saveDraftToStorage, getAllSavedDrafts } from '../../lib/drafts';
+import { getAllSavedDrafts } from '../../lib/drafts';
+import { AVAILABLE_FLOORS } from '../../data/floors';
 import {
   Edit3,
   Save,
@@ -13,24 +14,49 @@ import {
 
 interface AdminDashboardProps {
   floorPlan: FloorPlan;
-  onSaveDraft: (fp: FloorPlan) => void;
   onPublish: (fp: FloorPlan) => void;
   activeTab: string;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   floorPlan,
-  onSaveDraft,
   onPublish,
   activeTab,
 }) => {
-  const [drafts, setDrafts] = useState<FloorPlanDraft[]>(() => getAllSavedDrafts(floorPlan.id));
+  const [drafts] = useState<FloorPlanDraft[]>(() => getAllSavedDrafts(floorPlan.id));
 
-  const handleSaveDraft = (fp: FloorPlan) => {
-    onSaveDraft(fp);
-    const newDraft = saveDraftToStorage(fp);
-    setDrafts((prev) => [newDraft, ...prev.filter((d) => d.id !== newDraft.id)]);
-  };
+  const metricsSection = (
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <StatCard
+        title="Floor Plans Built"
+        value={`${AVAILABLE_FLOORS.length} Floors`}
+        subtitle={AVAILABLE_FLOORS.map((f) => f.label.split(' - ')[0]).join(', ')}
+        icon={Building2}
+        colorScheme="purple"
+      />
+      <StatCard
+        title="Total Canvas Desks"
+        value={floorPlan.desks.length}
+        subtitle="Interactive desk nodes"
+        icon={Edit3}
+        colorScheme="blue"
+      />
+      <StatCard
+        title="Saved Layout Drafts"
+        value={drafts.length}
+        subtitle="LocalStorage persisted"
+        icon={Save}
+        colorScheme="emerald"
+      />
+      <StatCard
+        title="Published Status"
+        value={floorPlan.isPublished ? `Live v${floorPlan.version}` : 'Unpublished'}
+        subtitle="Available for Employee & HR views"
+        icon={CheckCircle2}
+        colorScheme="amber"
+      />
+    </div>
+  );
 
   if (activeTab === 'drafts') {
     return (
@@ -84,46 +110,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     );
   }
 
-  return (
-    <div className="space-y-6">
-      {/* Admin Quick Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard
-          title="Floor Plans Built"
-          value="3 Floors"
-          subtitle="Floor 3, Floor 4, Floor 5"
-          icon={Building2}
-          colorScheme="purple"
-        />
-        <StatCard
-          title="Total Canvas Desks"
-          value={floorPlan.desks.length}
-          subtitle="Interactive desk nodes"
-          icon={Edit3}
-          colorScheme="blue"
-        />
-        <StatCard
-          title="Saved Layout Drafts"
-          value={drafts.length}
-          subtitle="LocalStorage persisted"
-          icon={Save}
-          colorScheme="emerald"
-        />
-        <StatCard
-          title="Published Status"
-          value="Live v2.0"
-          subtitle="Available for Employee & HR views"
-          icon={CheckCircle2}
-          colorScheme="amber"
-        />
+  if (activeTab === 'editor') {
+    return (
+      <div className="h-full min-h-0 flex flex-col">
+        <FloorCreatorEmbed className="flex-1 min-h-[calc(100vh-8rem)]" />
       </div>
+    );
+  }
 
-      {/* Interactive Admin Studio Editor Canvas */}
-      <FloorPlanEditor
-        initialFloorPlan={floorPlan}
-        onSaveDraft={handleSaveDraft}
-        onPublish={onPublish}
-      />
-    </div>
-  );
+  // dashboard (default): metrics overview only
+  return <div className="space-y-6">{metricsSection}</div>;
 };

@@ -30,14 +30,14 @@ export const FloorBoundary: React.FC<FloorBoundaryProps> = ({
         y={0}
         width={worldW}
         height={worldH}
-        className="fill-white dark:fill-[#0d0918] transition-colors"
+        className="fill-white dark:fill-dark-sidebar transition-colors"
       />
 
       {/* Muted Region Outside Floor Boundary */}
       <path
         d={maskPath}
         fillRule="evenodd"
-        className="fill-slate-200/80 dark:fill-[#05030a]/90 backdrop-blur-sm"
+        className="fill-slate-200/80 dark:fill-dark-bg/90 backdrop-blur-sm"
       />
 
       {/* Floor Boundary Outline */}
