@@ -2,3 +2,7 @@ node_modules/
 .vite/
 scratch/
 DeskIt/dist/
+DeskIt/package.json
+DeskIt/tsconfig.app.tsbuildinfo
+DeskIt/tsconfig.node.tsbuildinfo
+.gitignore
