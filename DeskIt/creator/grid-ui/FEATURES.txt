@@ -3,22 +3,24 @@ Floor Planner - capabilities
 - First-quadrant infinite paper (x≥0, y≥0); designated floor is placeable; beyond is grayed
 - Cell selection / hover limited to the designated floor
 - Fixed zoom levels: 2a → a → a/4 → a/16 (no 2x/4x toggle)
-- Default view at unit a; place on the current zoom level’s cell; store on a/16 finest cells
-- Catalog W×H interpreted at current place level; placeLevel locks footprint after zoom
-- Custom library polygons re-scale to the current place level on each place
+- Layout scale ladder (6): a/16 → a/8 → a/4 → a/2 → a → 2a; Scale up/down in Properties
+- First placed entity locks layoutPlaceLevel; later catalog/text use that size; zoom only affects snap/grid
+- Custom library polygons place at authored finest footprint (not rescaled to zoom); no free resize — like catalog items; Scale layout only
+- Catalog W×H interpreted at locked place level; placeLevel stored on entities
 - Catalog types sized in cells with SVG previews in accordion library
 - Place-mode ghost footprint preview (snapped) before click
 - Planner canvas shows cell occupancy only; Preview draws SVGs + polygon boundaries
-- Entity size is fixed; rotate 90° CCW (4 orientations); copy / delete
-- No entity scale-up / scale-down
+- Entity size is fixed at place; rotate 90° CCW (4 orientations); copy / delete
+- Uniform layout Scale up/down shifts all origins/sizes (locked entities too); toast if too large
+- Label/color edits apply to all entities of the same type + matching custom library entry
 - Bottom + right nav bars for fast pan when zoomed in
 - Ctrl+drag selects cells even over placed entities (zones / polygons / unusable)
 - Named zones with light tint; zone label uses placeholder (e.g. team-1)
 - Unusable regions for irregular floors; optional labels (e.g. pillar); blocks overlap
 - Mark usable: select unusable cells → Mark usable (partial restore)
-- Custom polygons under Custom (or new category); deletable from library; boundary svgPath for Preview
-- Compact JSON: corner outline vertices or AABB (not full cell lists / dense edge samples)
+- Custom polygons under Custom (or new category); deletable from library (bakes outline onto instances)
+- Compact floor file: library holds one outline; entity instances omit duplicated outline/svgPath
 - Sticky Preview top bar shows floor size as cols×rows (e.g. 128×128)
-- Floor JSON download / copy / load; localStorage drafts
+- Floor file download / load; localStorage drafts
 - Arbitrary unit a only (no meters/feet)
 - Undo/redo, snap, Fit, export PNG/SVG/PDF

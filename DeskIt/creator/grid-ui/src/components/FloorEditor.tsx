@@ -16,6 +16,7 @@ import type {
   LibraryItem,
   Point,
   Rect,
+  ScaleLevel,
   UnusableRegion,
 } from '../types/geometry';
 import { floorWorldHeight, floorWorldWidth } from '../types/geometry';
@@ -36,7 +37,6 @@ import {
   cellToWorldRect,
   cellsInWorldRect,
   FINEST_PER_A,
-  finestPerLevelCell,
   floorFinestCols,
   floorFinestRows,
   getGridLevel,
@@ -44,11 +44,13 @@ import {
   isCellOnFloor,
   levelCellSize,
   axisLabelMarks,
+  namedGridToScaleLevel,
+  scaleLevelLabel,
+  stepScaleLevel,
   worldRectFromPoints,
   worldToCell,
   worldToFinestCell,
   worldToLevelFinest,
-  type NamedGridLevel,
 } from '../geometry/grid';
 import { snapPointToGrid, snapToGrid } from '../geometry/snapping';
 import {
@@ -58,7 +60,6 @@ import {
   entityWorldRect,
   hitTestEntity,
   isPolygonEntity,
-  resizePolygonEntity,
   rotateEntity90CCW,
   translateEntity,
 } from '../geometry/entities';
@@ -66,31 +67,30 @@ import {
   cellsToRelativeFinest,
 } from '../geometry/footprint';
 import {
+  bakeLibraryOntoEntities,
   cellsToOutline,
   compactFromCells,
   expandRegionCells,
   finestCellInRegion,
-  hydratePolygonEntity,
   outlineToSvgPath,
   pointInOutline,
-  scalePolygonTemplate,
+  resolvePolygonEntity,
+  scaleLayout,
   splitIntoConnectedComponents,
 } from '../geometry/shapeStorage';
 import { useHistory } from '../hooks/useHistory';
 import {
   downloadFloorJson,
-  floorDocumentToJson,
   loadDraft,
   normalizeDocument,
   saveDraft,
   type FloorDocument,
 } from '../lib/drafts';
 import { exportPdf, exportPng, exportSvg } from '../lib/export';
-import { catalogToLibraryItems, loadCatalog } from '../lib/catalog';
+import { loadCatalog } from '../lib/catalog';
 import {
   deleteCustomLibraryEntry,
 } from '../lib/library';
-import type { ResizeHandle } from './ResizeHandles';
 import FloorBoundary from './FloorBoundary';
 import Grid from './Grid';
 import CellHighlight from './CellHighlight';
@@ -104,7 +104,6 @@ import SelectionMarquee from './SelectionMarquee';
 import SelectionActionMenu from './SelectionActionMenu';
 import EntityActionMenu from './EntityActionMenu';
 import SavePolygonDialog from './SavePolygonDialog';
-import ResizeHandles from './ResizeHandles';
 import EntityLibrary from './EntityLibrary';
 import PropertiesPanel from './PropertiesPanel';
 import Toolbar from './Toolbar';
@@ -115,6 +114,7 @@ import {
   loadGlobalCustomLibrary,
   mergeCustomLibraries,
   removeGlobalCustomEntry,
+  saveGlobalCustomLibrary,
   upsertGlobalCustomEntry,
 } from '../lib/globalCustomLibrary';
 import {
@@ -162,13 +162,6 @@ type DragMode =
       startWorld: Point;
       originEntities: Entity[];
       ids: string[];
-    }
-  | {
-      type: 'resize';
-      handle: ResizeHandle;
-      startWorld: Point;
-      originEntities: Entity[];
-      entityId: string;
     }
   | null;
 
@@ -233,6 +226,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
   );
   const [zones, setZones] = useState<FloorZone[]>([]);
   const [unusableRegions, setUnusableRegions] = useState<UnusableRegion[]>([]);
+  const [layoutPlaceLevel, setLayoutPlaceLevel] = useState<ScaleLevel | null>(null);
   const [promptReq, setPromptReq] = useState<PromptRequest | null>(null);
   const promptResolveRef = useRef<((v: string | null) => void) | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -311,19 +305,20 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
   const a = floor.a;
   const gridLevel = getGridLevel(viewport.zoom, a);
   const gridCellSize = levelCellSize(gridLevel, a);
+  const currentScaleFromZoom = namedGridToScaleLevel(gridLevel);
+  const placeLevelForSize = layoutPlaceLevel ?? currentScaleFromZoom;
   const placementSize = gridCellSize;
   const finestSize = a / FINEST_PER_A;
   const snapSizeWorld = snapEnabled ? placementSize : 0;
   const minZoom = minZoomToFitFloor(floor, svgSize.width, svgSize.height);
 
+  const lockPlaceLevel = useCallback((level: ScaleLevel) => {
+    setLayoutPlaceLevel((prev) => prev ?? level);
+  }, []);
+
   const mergedCustomLibrary = useMemo(
     () => mergeCustomLibraries(globalCustomLibrary, customLibrary),
     [globalCustomLibrary, customLibrary],
-  );
-
-  const allLibrary = useMemo(
-    () => [...catalogToLibraryItems({ categories }), ...mergedCustomLibrary],
-    [categories, mergedCustomLibrary],
   );
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
@@ -376,10 +371,11 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
       zones,
       customLibrary,
       unusableRegions,
+      layoutPlaceLevel: layoutPlaceLevel ?? undefined,
       viewport,
       theme,
     };
-  }, [floor, entities, zones, customLibrary, unusableRegions, viewport, theme]);
+  }, [floor, entities, zones, customLibrary, unusableRegions, layoutPlaceLevel, viewport, theme]);
 
   const showToast = useCallback((msg: string) => setToastMsg(msg), []);
 
@@ -532,6 +528,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
           showToast('Cannot place outside the floor or on unusable cells.');
           return;
         }
+        lockPlaceLevel(placeLevelForSize);
         setEntities([...entitiesRef.current, entity]);
         setSelectedIds([entity.objectId]);
         setSelectedCells([]);
@@ -553,7 +550,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
         const dims = catalogToFinestSizeAtLevel(
           Math.max(item.widthCells, Math.ceil(textVal.length * 0.4)),
           item.heightCells,
-          gridLevel,
+          placeLevelForSize,
         );
         finishPlace({
           objectId: createId('text'),
@@ -566,44 +563,50 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
           label: textVal.trim(),
           color: item.color,
           fontSize,
-          placeLevel: gridLevel,
+          placeLevel: placeLevelForSize,
         });
         return;
       }
 
       if (item.cells?.length || item.outline?.length) {
-        const authoredLevel = (item.placeLevel ?? 1) as NamedGridLevel;
-        const scaled = scalePolygonTemplate(
-          {
-            widthCells: item.widthCells,
-            heightCells: item.heightCells,
-            cells: item.cells,
-            outline: item.outline,
-            svgPath: item.svgPath,
-          },
-          authoredLevel,
-          gridLevel,
-          (lvl) => finestPerLevelCell(lvl as NamedGridLevel),
-        );
-        const hydrated = hydratePolygonEntity({
-          objectId: createId('polygon'),
+        // Place at authored finest footprint; geometry resolves from library.
+        const asLib: CustomLibraryEntry = {
+          id: item.id,
           category: item.category,
           elementType: item.elementType,
-          origin: cell,
-          widthCells: scaled.widthCells,
-          heightCells: scaled.heightCells,
-          rotation: 0,
-          outline: scaled.outline?.map((v) => ({ ...v })),
-          svgPath: scaled.svgPath,
           label: item.label,
+          widthCells: item.widthCells,
+          heightCells: item.heightCells,
           color: item.color,
-          placeLevel: gridLevel,
-        });
-        finishPlace(hydrated);
+          outline: item.outline,
+          cells: item.cells,
+          placeLevel: item.placeLevel,
+          svg: item.svg,
+        };
+        const placed = resolvePolygonEntity(
+          {
+            objectId: createId('polygon'),
+            category: item.category,
+            elementType: item.elementType,
+            origin: cell,
+            widthCells: item.widthCells,
+            heightCells: item.heightCells,
+            rotation: 0,
+            label: item.label,
+            color: item.color,
+            placeLevel: item.placeLevel ?? placeLevelForSize,
+          },
+          [asLib],
+        );
+        finishPlace(placed);
         return;
       }
 
-      const dims = catalogToFinestSizeAtLevel(item.widthCells, item.heightCells, gridLevel);
+      const dims = catalogToFinestSizeAtLevel(
+        item.widthCells,
+        item.heightCells,
+        placeLevelForSize,
+      );
       finishPlace({
         objectId: createId(item.elementType),
         category: item.category,
@@ -615,10 +618,20 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
         svg: item.svg,
         label: item.label,
         color: item.color,
-        placeLevel: gridLevel,
+        placeLevel: placeLevelForSize,
       });
     },
-    [setEntities, snapSizeWorld, a, gridLevel, entityFitsFloor, showToast, requestPrompt],
+    [
+      setEntities,
+      snapSizeWorld,
+      a,
+      gridLevel,
+      placeLevelForSize,
+      lockPlaceLevel,
+      entityFitsFloor,
+      showToast,
+      requestPrompt,
+    ],
   );
 
   const handleMarkAsPolygon = useCallback(() => {
@@ -644,21 +657,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
       );
       const svgDataUrl = svgMarkupToDataUrl(svgMarkup);
 
-      const entity: Entity = {
-        objectId,
-        category: opts.category,
-        elementType,
-        origin: polygonPending.origin,
-        widthCells: polygonPending.widthCells,
-        heightCells: polygonPending.heightCells,
-        outline,
-        svgPath,
-        svg: svgDataUrl,
-        label: opts.label,
-        color: opts.color,
-        placeLevel: gridLevel,
-      };
-
+      const saveLevel = placeLevelForSize;
       const libItem: CustomLibraryEntry = {
         id: `lib-${objectId}`,
         category: opts.category,
@@ -668,12 +667,28 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
         heightCells: polygonPending.heightCells,
         color: opts.color,
         outline: outline.map((v) => ({ ...v })),
-        svgPath,
         svg: svgDataUrl,
         fromSelection: true,
-        placeLevel: gridLevel,
+        placeLevel: saveLevel,
       };
 
+      // Instance row only — geometry lives on the library entry.
+      const entity = resolvePolygonEntity(
+        {
+          objectId,
+          category: opts.category,
+          elementType,
+          origin: polygonPending.origin,
+          widthCells: polygonPending.widthCells,
+          heightCells: polygonPending.heightCells,
+          label: opts.label,
+          color: opts.color,
+          placeLevel: saveLevel,
+        },
+        [libItem],
+      );
+
+      lockPlaceLevel(saveLevel);
       setEntities([...entitiesRef.current, entity]);
       setCustomLibrary((prev) => [...prev, libItem]);
       setGlobalCustomLibrary(upsertGlobalCustomEntry(libItem));
@@ -683,7 +698,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
       setShowEntityMenu(true);
       showToast(`“${opts.label}” saved to catalog · reusable on other floors`);
     },
-    [polygonPending, setEntities, gridLevel, showToast],
+    [polygonPending, setEntities, placeLevelForSize, lockPlaceLevel, showToast],
   );
 
   const handleCopy = useCallback(() => {
@@ -897,7 +912,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
       return;
     }
     if (e.category === 'text') return;
-    const next = rotateEntity90CCW(e);
+    const next = resolvePolygonEntity(rotateEntity90CCW(e), mergedCustomLibrary);
     if (!entityFitsFloor(next)) {
       showToast('Rotated entity would leave the floor or hit unusable cells.');
       return;
@@ -905,7 +920,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
     setEntities(
       entitiesRef.current.map((ent) => (ent.objectId === e.objectId ? next : ent)),
     );
-  }, [selectedEntities, setEntities, entityFitsFloor, showToast]);
+  }, [selectedEntities, setEntities, entityFitsFloor, showToast, mergedCustomLibrary]);
 
   const handleLockSelected = useCallback(() => {
     if (selectedEntities.length !== 1) return;
@@ -1024,43 +1039,6 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
     };
   }, [setEntities, handleCopy, handlePaste, handleDeleteSelected, snapSizeWorld, finestSize, placementSize]);
 
-  const applyPolygonResize = (
-    origin: Entity,
-    handle: ResizeHandle,
-    world: Point,
-    snap: number,
-  ): Entity => {
-    const b = entityWorldRect(origin, a);
-    let { x, y, width, height } = b;
-    const right = x + width;
-    const top = y + height;
-    let nx = world.x;
-    let ny = world.y;
-    if (snap > 0) {
-      nx = snapToGrid(nx, snap);
-      ny = snapToGrid(ny, snap);
-    }
-    if (handle.includes('e')) width = Math.max(finestSize, nx - x);
-    if (handle.includes('w')) {
-      const newX = Math.min(nx, right - finestSize);
-      width = right - newX;
-      x = newX;
-    }
-    if (handle.includes('n')) height = Math.max(finestSize, ny - y);
-    if (handle.includes('s')) {
-      const newY = Math.min(ny, top - finestSize);
-      height = top - newY;
-      y = newY;
-    }
-    const widthCells = Math.max(1, Math.round(width / finestSize));
-    const heightCells = Math.max(1, Math.round(height / finestSize));
-    const originCell = {
-      col: Math.max(0, Math.round(x / finestSize)),
-      row: Math.max(0, Math.round(y / finestSize)),
-    };
-    return resizePolygonEntity(origin, { origin: originCell, widthCells, heightCells });
-  };
-
   const handleEntityPointerDown = (id: string, e: React.MouseEvent) => {
     if (e.button !== 0) return;
     e.stopPropagation();
@@ -1100,20 +1078,6 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
       startWorld: world,
       originEntities: entitiesRef.current.map((ent) => cloneEntity(ent, ent.objectId)),
       ids: moveIds,
-    };
-  };
-
-  const handleHandleDown = (handle: ResizeHandle, e: React.MouseEvent) => {
-    if (selectedEntities.length !== 1) return;
-    const ent = selectedEntities[0];
-    if (!isPolygonEntity(ent) || ent.locked) return;
-    movedRef.current = false;
-    dragRef.current = {
-      type: 'resize',
-      handle,
-      startWorld: clientToWorld(e.clientX, e.clientY),
-      originEntities: entitiesRef.current.map((x) => cloneEntity(x, x.objectId)),
-      entityId: ent.objectId,
     };
   };
 
@@ -1220,15 +1184,6 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
       replaceEntities(moved);
       return;
     }
-
-    if (drag.type === 'resize') {
-      const origin = drag.originEntities.find((ent) => ent.objectId === drag.entityId);
-      if (!origin) return;
-      const next = applyPolygonResize(origin, drag.handle, world, snapSizeWorld);
-      replaceEntities(
-        drag.originEntities.map((ent) => (ent.objectId === next.objectId ? next : ent)),
-      );
-    }
   };
 
   const handleMouseUp = () => {
@@ -1285,17 +1240,103 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
       }
       return;
     }
-
-    if (drag?.type === 'resize' && movedRef.current) {
-      commitDrag(drag.originEntities);
-    }
   };
 
   const handleUpdateSelected = (patch: Partial<Entity>) => {
     if (selectedIds.length !== 1) return;
     const id = selectedIds[0];
-    setEntities(entities.map((e) => (e.objectId === id ? { ...e, ...patch } : e)));
+    const current = entitiesRef.current.find((e) => e.objectId === id);
+    if (!current) return;
+
+    const typeWide =
+      patch.label !== undefined || patch.color !== undefined
+        ? { label: patch.label, color: patch.color }
+        : null;
+
+    setEntities(
+      entitiesRef.current.map((e) => {
+        if (e.objectId === id) return { ...e, ...patch };
+        if (
+          typeWide &&
+          e.category === current.category &&
+          e.elementType === current.elementType
+        ) {
+          return {
+            ...e,
+            ...(typeWide.label !== undefined ? { label: typeWide.label } : {}),
+            ...(typeWide.color !== undefined ? { color: typeWide.color } : {}),
+          };
+        }
+        return e;
+      }),
+    );
+
+    if (typeWide) {
+      const applyLib = (item: CustomLibraryEntry): CustomLibraryEntry => {
+        if (
+          item.category !== current.category ||
+          item.elementType !== current.elementType
+        ) {
+          return item;
+        }
+        return {
+          ...item,
+          ...(typeWide.label !== undefined ? { label: typeWide.label } : {}),
+          ...(typeWide.color !== undefined ? { color: typeWide.color } : {}),
+        };
+      };
+      setCustomLibrary((prev) => prev.map(applyLib));
+      setGlobalCustomLibrary((prev) => {
+        const next = prev.map(applyLib);
+        saveGlobalCustomLibrary(next);
+        return next;
+      });
+    }
   };
+
+  const handleScaleLayout = useCallback(
+    (direction: 'up' | 'down') => {
+      const from = layoutPlaceLevel ?? currentScaleFromZoom;
+      const to = stepScaleLevel(from, direction);
+      if (!to) return;
+      const result = scaleLayout(
+        {
+          entities: entitiesRef.current,
+          zones,
+          unusableRegions,
+          customLibrary,
+          layoutPlaceLevel: from,
+          floor,
+        },
+        to,
+      );
+      if (result.ok === false) {
+        if (result.reason === 'too-large') {
+          showToast('Workspace too small to scale up.');
+        }
+        return;
+      }
+      resetEntities(result.doc.entities);
+      setZones(result.doc.zones);
+      setUnusableRegions(result.doc.unusableRegions);
+      setCustomLibrary(result.doc.customLibrary);
+      setLayoutPlaceLevel(result.doc.layoutPlaceLevel);
+      for (const entry of result.doc.customLibrary) {
+        upsertGlobalCustomEntry(entry);
+      }
+      setGlobalCustomLibrary(loadGlobalCustomLibrary());
+    },
+    [
+      layoutPlaceLevel,
+      currentScaleFromZoom,
+      zones,
+      unusableRegions,
+      customLibrary,
+      floor,
+      resetEntities,
+      showToast,
+    ],
+  );
 
   const handleSaveDraft = (name: string) => {
     saveDraft({ ...buildDocument(), name });
@@ -1308,6 +1349,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
     resetEntities(normalized.entities);
     setZones(normalized.zones ?? []);
     setCustomLibrary(normalized.customLibrary ?? []);
+    setLayoutPlaceLevel(normalized.layoutPlaceLevel ?? null);
     // Promote draft customs into the workspace library so they stay reusable
     let global = loadGlobalCustomLibrary();
     for (const entry of normalized.customLibrary ?? []) {
@@ -1406,34 +1448,21 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
     origin = { col: Math.max(0, origin.col), row: Math.max(0, origin.row) };
 
     if (placeItem.cells?.length || placeItem.outline?.length) {
-      const authoredLevel = (placeItem.placeLevel ?? 1) as NamedGridLevel;
-      const scaled = scalePolygonTemplate(
-        {
-          widthCells: placeItem.widthCells,
-          heightCells: placeItem.heightCells,
-          cells: placeItem.cells,
-          outline: placeItem.outline,
-          svgPath: placeItem.svgPath,
-        },
-        authoredLevel,
-        gridLevel,
-        (lvl) => finestPerLevelCell(lvl as NamedGridLevel),
-      );
       const draft: Entity = {
         objectId: 'preview',
         category: placeItem.category,
         elementType: placeItem.elementType,
         origin,
-        widthCells: scaled.widthCells,
-        heightCells: scaled.heightCells,
-        outline: scaled.outline,
-        placeLevel: gridLevel,
+        widthCells: placeItem.widthCells,
+        heightCells: placeItem.heightCells,
+        outline: placeItem.outline,
+        placeLevel: placeItem.placeLevel ?? placeLevelForSize,
       };
       return {
         origin,
-        widthCells: scaled.widthCells,
-        heightCells: scaled.heightCells,
-        outline: scaled.outline,
+        widthCells: placeItem.widthCells,
+        heightCells: placeItem.heightCells,
+        outline: placeItem.outline,
         fits: entityFitsFloor(draft),
         color: placeItem.color,
       };
@@ -1444,12 +1473,12 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
         ? catalogToFinestSizeAtLevel(
             Math.max(placeItem.widthCells, 4),
             placeItem.heightCells,
-            gridLevel,
+            placeLevelForSize,
           )
         : catalogToFinestSizeAtLevel(
             placeItem.widthCells,
             placeItem.heightCells,
-            gridLevel,
+            placeLevelForSize,
           );
     const draft: Entity = {
       objectId: 'preview',
@@ -1458,7 +1487,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
       origin,
       widthCells: dims.widthCells,
       heightCells: dims.heightCells,
-      placeLevel: gridLevel,
+      placeLevel: placeLevelForSize,
     };
     return {
       origin,
@@ -1472,6 +1501,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
     cursorWorld,
     snapSizeWorld,
     gridLevel,
+    placeLevelForSize,
     a,
     entityFitsFloor,
   ]);
@@ -1528,6 +1558,12 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
             setPlaceItem(item);
           }}
           onDeleteCustom={(id) => {
+            const entry =
+              customLibrary.find((e) => e.id === id) ??
+              globalCustomLibrary.find((e) => e.id === id);
+            if (entry) {
+              setEntities((prev) => bakeLibraryOntoEntities(prev, entry));
+            }
             setCustomLibrary((prev) => deleteCustomLibraryEntry(prev, id));
             setGlobalCustomLibrary(removeGlobalCustomEntry(id));
           }}
@@ -1608,14 +1644,6 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
                 colorFor={colorFor}
                 onEntityPointerDown={handleEntityPointerDown}
               />
-              {singleSelected && isPolygonEntity(singleSelected) && !singleSelected.locked && (
-                <ResizeHandles
-                  entity={singleSelected}
-                  a={a}
-                  zoom={viewport.zoom}
-                  onHandleDown={handleHandleDown}
-                />
-              )}
             </g>
 
             <SelectionMarquee rect={marqueeRect} viewport={viewport} />
@@ -1706,15 +1734,18 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
               pos ({Math.max(0, cursorPos.col)}, {Math.max(0, cursorPos.row)})
             </span>
             <span>
-              a={floor.a} · cell {gridCellSize.toFixed(2)} · L{gridLevel} · place L{gridLevel}
+            cell {gridCellSize.toFixed(2)} | Level:{gridLevel} | placeAt: {' '}
+              {layoutPlaceLevel
+                ? scaleLevelLabel(layoutPlaceLevel)
+                : scaleLevelLabel(currentScaleFromZoom)}
             </span>
             <span>{snapEnabled ? 'Snap ON' : 'Snap OFF'}</span>
             <span>
-              {selectedIds.length > 0
-                ? `${selectedIds.length} entity(s)`
-                : selectedCells.length > 0
-                  ? `${selectedCells.length} cell(s)`
-                  : 'Nothing selected'}
+              {selectedIds.length > 0 
+			  	? `${selectedIds.length} entity(s)`
+              	: selectedCells.length > 0 
+			  	? `${selectedCells.length} cell(s)`
+              	: 'Nothing selected'}
             </span>
           </div>
         </div>
@@ -1724,6 +1755,8 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
           onFloorChange={setFloor}
           selected={selectedEntities}
           onUpdateSelected={handleUpdateSelected}
+          layoutPlaceLevel={layoutPlaceLevel ?? currentScaleFromZoom}
+          onScaleLayout={handleScaleLayout}
           zones={zones}
           onDeleteZone={(id) =>
             setZones((prev) => prev.filter((z) => z.id !== id || Boolean(z.locked)))
@@ -1753,9 +1786,6 @@ const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
             setUnusableRegions((prev) => prev.filter((r) => r.id !== id))
           }
           onExportJson={() => downloadFloorJson(buildDocument())}
-          onCopyJson={() => {
-            void navigator.clipboard.writeText(floorDocumentToJson(buildDocument()));
-          }}
           onImportJson={handleImportJson}
         />
       </div>

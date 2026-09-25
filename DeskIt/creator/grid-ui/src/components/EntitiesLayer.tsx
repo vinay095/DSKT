@@ -160,7 +160,6 @@ const EntitiesLayer: React.FC<EntitiesLayerProps> = ({
               stroke={selected ? '#22c55e' : color}
               strokeWidth={selected ? 2 : 1.5}
               vectorEffect="non-scaling-stroke"
-              rx={f * 0.8}
             />
             <g
               transform={readableLabelTransform(cx, cy, rot)}

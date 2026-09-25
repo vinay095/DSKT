@@ -1,11 +1,12 @@
 import type { Entity, GridCell, Point, Rect } from '../types/geometry';
-import { pointInRelativeCells, cellsToSvgPath } from './footprint';
+import { pointInRelativeCells } from './footprint';
 import { FINEST_PER_A } from './grid';
 import {
   cellsToOutline,
   outlineToCells,
   outlineToSvgPath,
   pointInOutline,
+  rotateOutline90CCW,
 } from './shapeStorage';
 
 /** World rect for an entity; `a` is the named unit (finest = a/16). */
@@ -82,7 +83,6 @@ export function entitiesIntersectingRect(
       );
     }
     if (isPolygonEntity(e) && e.outline && e.outline.length >= 3) {
-      // AABB overlap is enough for selection; precise hit uses outline
       return rectsIntersect(entityBounds(e, a), rect);
     }
     return rectsIntersect(entityBounds(e, a), rect);
@@ -106,46 +106,27 @@ export function rotateEntity90CCW(entity: Entity): Entity {
   const nextRot = (((entity.rotation ?? 0) + 90) % 360) as EntityRotation;
 
   if (isPolygonEntity(entity)) {
-    let cells = entity.cells;
-    if ((!cells || cells.length === 0) && entity.outline && entity.outline.length >= 3) {
-      cells = outlineToCells(entity.outline, entity.widthCells, entity.heightCells);
+    let outline = entity.outline;
+    if ((!outline || outline.length < 3) && entity.cells && entity.cells.length > 0) {
+      outline = cellsToOutline(entity.cells);
     }
-    if (cells && cells.length > 0) {
+    if (outline && outline.length >= 3) {
       const w = entity.widthCells;
       const h = entity.heightCells;
       const cx = entity.origin.col + w / 2;
       const cy = entity.origin.row + h / 2;
-      const rotated = cells.map((c) => ({
-        col: c.row,
-        row: w - 1 - c.col,
-      }));
-      let minCol = Infinity;
-      let minRow = Infinity;
-      let maxCol = -Infinity;
-      let maxRow = -Infinity;
-      for (const c of rotated) {
-        minCol = Math.min(minCol, c.col);
-        minRow = Math.min(minRow, c.row);
-        maxCol = Math.max(maxCol, c.col);
-        maxRow = Math.max(maxRow, c.row);
-      }
-      const nextCells = rotated.map((c) => ({
-        col: c.col - minCol,
-        row: c.row - minRow,
-      }));
-      const nw = maxCol - minCol + 1;
-      const nh = maxRow - minRow + 1;
+      const rotated = rotateOutline90CCW(outline, w, h);
+      const { cells: _drop, ...rest } = entity;
       return {
-        ...entity,
+        ...rest,
         origin: {
-          col: Math.round(cx - nw / 2),
-          row: Math.round(cy - nh / 2),
+          col: Math.round(cx - rotated.widthCells / 2),
+          row: Math.round(cy - rotated.heightCells / 2),
         },
-        widthCells: nw,
-        heightCells: nh,
-        cells: nextCells,
-        outline: cellsToOutline(nextCells),
-        svgPath: cellsToSvgPath(nextCells),
+        widthCells: rotated.widthCells,
+        heightCells: rotated.heightCells,
+        outline: rotated.outline,
+        svgPath: outlineToSvgPath(rotated.outline),
         rotation: nextRot,
       };
     }
@@ -166,77 +147,6 @@ export function rotateEntity90CCW(entity: Entity): Entity {
     widthCells: nw,
     heightCells: nh,
     rotation: nextRot,
-  };
-}
-
-export function resizePolygonEntity(
-  entity: Entity,
-  next: { origin: GridCell; widthCells: number; heightCells: number },
-): Entity {
-  const ow = Math.max(1, entity.widthCells);
-  const oh = Math.max(1, entity.heightCells);
-  const nw = Math.max(1, next.widthCells);
-  const nh = Math.max(1, next.heightCells);
-  const sx = nw / ow;
-  const sy = nh / oh;
-
-  if (entity.outline && entity.outline.length >= 3 && (!entity.cells || entity.cells.length === 0)) {
-    const outline = entity.outline.map((v) => ({
-      col: Math.round(v.col * sx),
-      row: Math.round(v.row * sy),
-    }));
-    return {
-      ...entity,
-      origin: next.origin,
-      widthCells: nw,
-      heightCells: nh,
-      outline,
-      svgPath: outlineToSvgPath(outline),
-    };
-  }
-
-  if (!entity.cells || entity.cells.length === 0) {
-    return {
-      ...entity,
-      origin: next.origin,
-      widthCells: nw,
-      heightCells: nh,
-    };
-  }
-
-  const scaled: GridCell[] = [];
-  const seen = new Set<string>();
-  for (const c of entity.cells) {
-    const col = Math.round(c.col * sx);
-    const row = Math.round(c.row * sy);
-    const w = Math.max(1, Math.round(sx));
-    const h = Math.max(1, Math.round(sy));
-    for (let r = 0; r < h; r++) {
-      for (let colOff = 0; colOff < w; colOff++) {
-        const nc = Math.min(nw - 1, col + colOff);
-        const nr = Math.min(nh - 1, row + r);
-        const key = `${nc},${nr}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        scaled.push({ col: nc, row: nr });
-      }
-    }
-  }
-
-  if (scaled.length === 0) {
-    for (let r = 0; r < nh; r++) {
-      for (let c = 0; c < nw; c++) scaled.push({ col: c, row: r });
-    }
-  }
-
-  return {
-    ...entity,
-    origin: next.origin,
-    widthCells: nw,
-    heightCells: nh,
-    cells: scaled,
-    outline: cellsToOutline(scaled),
-    svgPath: cellsToSvgPath(scaled),
   };
 }
 

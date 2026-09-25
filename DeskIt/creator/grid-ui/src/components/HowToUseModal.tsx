@@ -29,17 +29,20 @@ const HowToUseModal: React.FC<HowToUseModalProps> = ({ open, onClose }) => {
             <h3>Grid levels</h3>
             <ul>
               <li>
-                Fixed ladder: <strong>2a → a → a/4 → a/16</strong> (levels −1, 0, 1, 2).
+                Zoom ladder: <strong>2a → a → a/4 → a/16</strong> (levels −1, 0, 1, 2).
+              </li>
+              <li>
+                Layout scale (Properties): <strong>a/16 → a/8 → a/4 → a/2 → a → 2a</strong>.
+                Scale up/down resizes the whole layout uniformly.
               </li>
               <li>
                 Default view is <strong>a</strong>. Zoom out merges to <strong>2a</strong>; zoom in
-                reveals a/4 then a/16.
+                reveals a/4 then a/16. Zoom only changes the visible grid / snap — not object size
+                after the first place locks <code>layoutPlaceLevel</code>.
               </li>
               <li>
-                Place furniture on the <strong>current zoom level</strong> cell (2a / a / a/4 /
-                a/16). Catalog W×H is in those cells; size is locked via{' '}
-                <code>placeLevel</code> after place. Storage uses finest <strong>a/16</strong>{' '}
-                cells.
+                Catalog W×H is sized at the locked place level; storage uses finest{' '}
+                <strong>a/16</strong> cells. Custom polygons keep their authored size.
               </li>
               <li>
                 When zoomed in, use the bottom/right <strong>nav bars</strong> to pan quickly.
@@ -76,7 +79,10 @@ const HowToUseModal: React.FC<HowToUseModalProps> = ({ open, onClose }) => {
               </li>
               <li>
                 After place: Copy / Rotate 90° CCW / Lock / Delete. Locked entities show only Unlock
-                and cannot be moved. Zones: change color or Lock in the Properties panel.
+                and cannot be moved. Custom polygons behave like catalog furniture — no free resize;
+                use Properties <strong>Scale up/down</strong> to change size uniformly. Zones: change
+                color or Lock in the Properties panel. Label and colour changes apply to every entity
+                of that type.
               </li>
             </ul>
           </section>
@@ -103,12 +109,12 @@ const HowToUseModal: React.FC<HowToUseModalProps> = ({ open, onClose }) => {
           </section>
 
           <section>
-            <h3>JSON &amp; Preview</h3>
+            <h3>Floor file &amp; Preview</h3>
             <ul>
               <li>
-                Download / copy / load floor JSON. Polygons, zones, and unusable regions store
-                corner <strong>outline</strong> vertices or an AABB (not every filled cell). Preview
-                shows floor size as <strong>cols×rows</strong> (e.g. 128×128) in a sticky top bar.
+                Download / load floor file. Custom polygon geometry lives once in the library;
+                placed instances store origin, rotation, and size. Preview shows floor size as{' '}
+                <strong>cols×rows</strong> (e.g. 128×128) in a sticky top bar.
               </li>
               <li>
                 While placing from the library, a ghost footprint follows the cursor (snapped to the

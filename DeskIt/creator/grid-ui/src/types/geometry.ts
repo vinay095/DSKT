@@ -25,8 +25,15 @@ export type GridCell = {
   row: number;
 };
 
-/** Named place/snap level persisted on entities: -1=2a, 0=a, 1=a/4, 2=a/16. */
-export type PlaceLevel = -1 | 0 | 1 | 2;
+/**
+ * Layout / place size ladder (6 rungs). Zoom grid stays on 4 named levels;
+ * place size uses this scale when layoutPlaceLevel is locked.
+ * Legacy JSON may still use -1|0|1|2 — coerce via coerceScaleLevel.
+ */
+export type ScaleLevel = 'a/16' | 'a/8' | 'a/4' | 'a/2' | 'a' | '2a';
+
+/** @deprecated prefer ScaleLevel; kept as alias for call sites. */
+export type PlaceLevel = ScaleLevel;
 
 /** Outline vertex in finest-cell coordinates (boundary ring). */
 export type OutlineVertex = {

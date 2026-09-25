@@ -62,7 +62,6 @@ const PlacePreview: React.FC<PlacePreviewProps> = ({
         strokeWidth={1.5}
         strokeDasharray="4 3"
         vectorEffect="non-scaling-stroke"
-        rx={f * 0.8}
       />
     </g>
   );

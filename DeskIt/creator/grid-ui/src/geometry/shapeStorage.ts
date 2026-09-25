@@ -1,12 +1,21 @@
 import type {
+  CustomLibraryEntry,
   Entity,
+  FloorConfig,
   FloorZone,
   GridCell,
   OutlineVertex,
   Point,
+  ScaleLevel,
   UnusableRegion,
 } from '../types/geometry';
 import { cellsToSvgPath, outlineGridCells } from './footprint';
+import {
+  coerceScaleLevel,
+  finestPerScaleLevel,
+  floorFinestCols,
+  floorFinestRows,
+} from './grid';
 
 export type CompactRegion = {
   origin: GridCell;
@@ -403,6 +412,121 @@ export function normalizeUnusable(
   };
 }
 
+/** Rotate relative outline 90° CCW within AABB; returns new outline + swapped dims. */
+export function rotateOutline90CCW(
+  outline: OutlineVertex[],
+  widthCells: number,
+  _heightCells: number,
+): { outline: OutlineVertex[]; widthCells: number; heightCells: number } {
+  const rotated = outline.map((v) => ({
+    col: v.row,
+    row: widthCells - v.col,
+  }));
+  let minCol = Infinity;
+  let minRow = Infinity;
+  let maxCol = -Infinity;
+  let maxRow = -Infinity;
+  for (const v of rotated) {
+    minCol = Math.min(minCol, v.col);
+    minRow = Math.min(minRow, v.row);
+    maxCol = Math.max(maxCol, v.col);
+    maxRow = Math.max(maxRow, v.row);
+  }
+  const next = simplifyCollinear(
+    rotated.map((v) => ({
+      col: Math.round(v.col - minCol),
+      row: Math.round(v.row - minRow),
+    })),
+  );
+  return {
+    outline: next,
+    widthCells: Math.max(1, Math.round(maxCol - minCol)),
+    heightCells: Math.max(1, Math.round(maxRow - minRow)),
+  };
+}
+
+function findLibraryPolygon(
+  entity: Entity,
+  library: CustomLibraryEntry[] | undefined,
+): CustomLibraryEntry | undefined {
+  if (!library?.length) return undefined;
+  return library.find(
+    (item) =>
+      item.category === entity.category &&
+      item.elementType === entity.elementType &&
+      ((item.outline && item.outline.length >= 3) || (item.cells && item.cells.length > 0)),
+  );
+}
+
+/** Scale library outline to target AABB (non-uniform), then apply rotation. */
+export function libraryRotatedDims(
+  lib: { widthCells: number; heightCells: number; outline?: OutlineVertex[]; cells?: GridCell[] },
+  rotation: 0 | 90 | 180 | 270,
+  targetW: number,
+  targetH: number,
+): { widthCells: number; heightCells: number; outline: OutlineVertex[] } | null {
+  let outline =
+    lib.outline && lib.outline.length >= 3
+      ? simplifyCollinear(lib.outline)
+      : lib.cells
+        ? cellsToOutline(lib.cells)
+        : null;
+  if (!outline || outline.length < 3) return null;
+
+  const sx = targetW / Math.max(1, lib.widthCells);
+  const sy = targetH / Math.max(1, lib.heightCells);
+  outline = simplifyCollinear(
+    outline.map((v) => ({
+      col: Math.round(v.col * sx),
+      row: Math.round(v.row * sy),
+    })),
+  );
+  let w = Math.max(1, Math.round(lib.widthCells * sx));
+  let h = Math.max(1, Math.round(lib.heightCells * sy));
+  const turns = (((rotation % 360) + 360) % 360) / 90;
+  for (let i = 0; i < turns; i++) {
+    const r = rotateOutline90CCW(outline, w, h);
+    outline = r.outline;
+    w = r.widthCells;
+    h = r.heightCells;
+  }
+  return { widthCells: w, heightCells: h, outline };
+}
+
+/**
+ * Resolve library-backed polygon geometry onto the entity for runtime use.
+ * When a library entry exists, always rebuild from it using the library's
+ * authored size (uniform; no per-instance stretch).
+ */
+export function resolvePolygonEntity(
+  entity: Entity,
+  library?: CustomLibraryEntry[],
+): Entity {
+  const lib = findLibraryPolygon(entity, library);
+
+  if (lib) {
+    const rotation = (entity.rotation ?? 0) as 0 | 90 | 180 | 270;
+    const built = libraryRotatedDims(
+      lib,
+      rotation,
+      lib.widthCells,
+      lib.heightCells,
+    );
+    if (!built) return hydratePolygonEntity(entity);
+
+    const { cells: _c, svg: _s, svgPath: _p, outline: _o, ...rest } = entity;
+    return {
+      ...rest,
+      outline: built.outline,
+      svgPath: outlineToSvgPath(built.outline),
+      widthCells: built.widthCells,
+      heightCells: built.heightCells,
+    };
+  }
+
+  return hydratePolygonEntity(entity);
+}
+
 /** Ensure polygon entities have a simplified outline; do not expand cells[] in memory. */
 export function hydratePolygonEntity(entity: Entity): Entity {
   if (!entity.cells?.length && !entity.outline?.length) return entity;
@@ -415,12 +539,11 @@ export function hydratePolygonEntity(entity: Entity): Entity {
   }
 
   const svgPath =
-    entity.svgPath ||
-    (outline && outline.length >= 2
+    outline && outline.length >= 2
       ? outlineToSvgPath(outline)
       : entity.cells
         ? cellsToSvgPath(entity.cells)
-        : undefined);
+        : entity.svgPath;
 
   const { cells: _drop, ...rest } = entity;
   return {
@@ -430,11 +553,27 @@ export function hydratePolygonEntity(entity: Entity): Entity {
   };
 }
 
-/** Drop bulk cells[]; keep corner outline / AABB for JSON. */
-export function compactEntityForSave(entity: Entity): Entity {
+/**
+ * Drop cells/svgPath/svg; always strip outline when library is canonical
+ * so library-backed instances share a fixed JSON column set.
+ */
+export function compactEntityForSave(
+  entity: Entity,
+  library?: CustomLibraryEntry[],
+): Entity {
+  const lib = findLibraryPolygon(entity, library);
+  const { cells: _c, svgPath: _p, svg: _s, ...base } = entity;
+
+  if (lib) {
+    const { outline: _o, ...rest } = base;
+    return {
+      ...rest,
+      rotation: (entity.rotation ?? 0) as 0 | 90 | 180 | 270,
+    };
+  }
+
   if (!entity.cells?.length && !entity.outline?.length) {
-    const { cells: _c, ...rest } = entity;
-    return rest;
+    return base;
   }
   const outline = simplifyCollinear(
     entity.outline && entity.outline.length >= 3
@@ -443,23 +582,26 @@ export function compactEntityForSave(entity: Entity): Entity {
         ? cellsToOutline(entity.cells)
         : [],
   );
-  const svgPath =
-    entity.svgPath ||
-    (outline.length >= 2 ? outlineToSvgPath(outline) : undefined);
-  const { cells: _drop, ...rest } = entity;
   return {
-    ...rest,
+    ...base,
     outline: outline.length >= 3 ? outline : undefined,
-    svgPath,
   };
 }
 
-export function compactLibraryItemForSave<T extends { cells?: GridCell[]; outline?: OutlineVertex[]; svgPath?: string; widthCells: number; heightCells: number }>(
-  item: T,
-): T {
+export function compactLibraryItemForSave<
+  T extends {
+    cells?: GridCell[];
+    outline?: OutlineVertex[];
+    svgPath?: string;
+    widthCells: number;
+    heightCells: number;
+    placeLevel?: ScaleLevel | number;
+  },
+>(item: T): T {
+  const placeLevel = coerceScaleLevel(item.placeLevel) ?? item.placeLevel;
   if (!item.cells?.length && !item.outline?.length) {
-    const { cells: _c, ...rest } = item;
-    return rest as T;
+    const { cells: _c, svgPath: _p, ...rest } = item;
+    return { ...rest, placeLevel } as T;
   }
   const outline = simplifyCollinear(
     item.outline && item.outline.length >= 3
@@ -468,13 +610,159 @@ export function compactLibraryItemForSave<T extends { cells?: GridCell[]; outlin
         ? cellsToOutline(item.cells)
         : [],
   );
-  const svgPath =
-    item.svgPath ||
-    (outline.length >= 2 ? outlineToSvgPath(outline) : undefined);
-  const { cells: _drop, ...rest } = item;
+  const { cells: _drop, svgPath: _path, ...rest } = item;
   return {
     ...rest,
+    placeLevel,
     outline: outline.length >= 3 ? outline : undefined,
-    svgPath,
   } as T;
+}
+
+function scaleOutlineVertices(
+  outline: OutlineVertex[] | undefined,
+  factor: number,
+): OutlineVertex[] | undefined {
+  if (!outline || outline.length < 3) return outline;
+  return simplifyCollinear(
+    outline.map((v) => ({
+      col: Math.round(v.col * factor),
+      row: Math.round(v.row * factor),
+    })),
+  );
+}
+
+function scaleRegionLike<T extends {
+  origin: GridCell;
+  widthCells: number;
+  heightCells: number;
+  outline?: OutlineVertex[];
+  cells?: GridCell[];
+}>(region: T, factor: number): T {
+  const outline = scaleOutlineVertices(region.outline, factor);
+  const cells = region.cells?.map((c) => ({
+    col: Math.round(c.col * factor),
+    row: Math.round(c.row * factor),
+  }));
+  return {
+    ...region,
+    origin: {
+      col: Math.round(region.origin.col * factor),
+      row: Math.round(region.origin.row * factor),
+    },
+    widthCells: Math.max(1, Math.round(region.widthCells * factor)),
+    heightCells: Math.max(1, Math.round(region.heightCells * factor)),
+    outline,
+    cells,
+  };
+}
+
+/** True if all layout AABBs fit inside the floor finest bounds. */
+export function layoutFitsFloor(
+  pieces: Array<{
+    origin: GridCell;
+    widthCells: number;
+    heightCells: number;
+  }>,
+  floor: FloorConfig,
+): boolean {
+  const maxCol = floorFinestCols(floor);
+  const maxRow = floorFinestRows(floor);
+  return pieces.every(
+    (p) =>
+      p.origin.col >= 0 &&
+      p.origin.row >= 0 &&
+      p.origin.col + p.widthCells <= maxCol &&
+      p.origin.row + p.heightCells <= maxRow,
+  );
+}
+
+export type ScaleLayoutInput = {
+  entities: Entity[];
+  zones: FloorZone[];
+  unusableRegions: UnusableRegion[];
+  customLibrary: CustomLibraryEntry[];
+  layoutPlaceLevel: ScaleLevel;
+  floor: FloorConfig;
+};
+
+export type ScaleLayoutResult =
+  | { ok: true; doc: Omit<ScaleLayoutInput, 'floor'> }
+  | { ok: false; reason: 'at-limit' | 'too-large' };
+
+/** Uniformly scale all layout coords by finest(to)/finest(from). */
+export function scaleLayout(
+  input: ScaleLayoutInput,
+  to: ScaleLevel,
+): ScaleLayoutResult {
+  const from = input.layoutPlaceLevel;
+  if (from === to) return { ok: false, reason: 'at-limit' };
+  const factor = finestPerScaleLevel(to) / finestPerScaleLevel(from);
+  if (!(factor > 0) || !Number.isFinite(factor)) {
+    return { ok: false, reason: 'at-limit' };
+  }
+
+  const entities = input.entities.map((e) => {
+    const scaled = scaleRegionLike(e, factor);
+    return {
+      ...scaled,
+      placeLevel: to,
+      svgPath: scaled.outline ? outlineToSvgPath(scaled.outline) : undefined,
+    };
+  });
+  const zones = input.zones.map((z) => scaleRegionLike(z, factor));
+  const unusableRegions = input.unusableRegions.map((r) =>
+    scaleRegionLike(r, factor),
+  );
+  const customLibrary = input.customLibrary.map((item) => {
+    const outline = scaleOutlineVertices(item.outline, factor);
+    const cells = item.cells?.map((c) => ({
+      col: Math.round(c.col * factor),
+      row: Math.round(c.row * factor),
+    }));
+    return {
+      ...item,
+      widthCells: Math.max(1, Math.round(item.widthCells * factor)),
+      heightCells: Math.max(1, Math.round(item.heightCells * factor)),
+      outline,
+      cells,
+      placeLevel: to,
+      svgPath: outline ? outlineToSvgPath(outline) : undefined,
+    };
+  });
+
+  if (factor > 1) {
+    const pieces = [
+      ...entities,
+      ...zones,
+      ...unusableRegions,
+    ];
+    if (!layoutFitsFloor(pieces, input.floor)) {
+      return { ok: false, reason: 'too-large' };
+    }
+  }
+
+  return {
+    ok: true,
+    doc: {
+      entities,
+      zones,
+      unusableRegions,
+      customLibrary,
+      layoutPlaceLevel: to,
+    },
+  };
+}
+
+/** Bake library outline onto entities that reference a deleted library entry. */
+export function bakeLibraryOntoEntities(
+  entities: Entity[],
+  entry: CustomLibraryEntry,
+): Entity[] {
+  return entities.map((e) => {
+    if (e.category !== entry.category || e.elementType !== entry.elementType) {
+      return e;
+    }
+    if (e.outline && e.outline.length >= 3) return e;
+    return resolvePolygonEntity(e, [entry]);
+  });
 }

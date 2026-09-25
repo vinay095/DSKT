@@ -1,12 +1,15 @@
-import type { CellRef, FloorConfig, Point, Rect } from '../types/geometry';
+import type { CellRef, FloorConfig, Point, Rect, ScaleLevel } from '../types/geometry';
 import { floorWorldHeight, floorWorldWidth } from '../types/geometry';
 import type { Viewport } from '../types/viewport';
 import { screenToWorld } from './coordinates';
 
-/** Named levels: -1=2a, 0=a, 1=a/4, 2=a/16. */
+/** Named zoom/display levels: -1=2a, 0=a, 1=a/4, 2=a/16. */
 export type NamedGridLevel = -1 | 0 | 1 | 2;
 
 export const NAMED_LEVELS: NamedGridLevel[] = [-1, 0, 1, 2];
+
+/** Layout scale ladder (6 rungs). Zoom grid stays on NAMED_LEVELS. */
+export const SCALE_LEVELS: ScaleLevel[] = ['a/16', 'a/8', 'a/4', 'a/2', 'a', '2a'];
 
 /** Finest cells per unit `a` (level 2 = a/16). */
 export const FINEST_PER_A = 16;
@@ -18,6 +21,15 @@ export const PLACE_PER_A = 4;
 export const FINEST_PER_PLACE = FINEST_PER_A / PLACE_PER_A; // 4
 
 const MIN_CELL_PX = 24;
+
+const FINEST_PER_SCALE: Record<ScaleLevel, number> = {
+  'a/16': 1,
+  'a/8': 2,
+  'a/4': 4,
+  'a/2': 8,
+  a: 16,
+  '2a': 32,
+};
 
 export function levelCellSize(level: NamedGridLevel, a: number): number {
   switch (level) {
@@ -183,9 +195,55 @@ export function worldToLevelFinest(
   };
 }
 
-/** Finest cells per one cell at the given named level. */
+/** Finest cells per one cell at the given named zoom level. */
 export function finestPerLevelCell(level: NamedGridLevel): number {
   return Math.max(1, Math.round(levelCellSize(level, 1) * FINEST_PER_A));
+}
+
+/** Finest cells per one cell at a layout scale level. */
+export function finestPerScaleLevel(level: ScaleLevel): number {
+  return FINEST_PER_SCALE[level];
+}
+
+/** Map zoom display rung onto the 6-level scale ladder. */
+export function namedGridToScaleLevel(level: NamedGridLevel): ScaleLevel {
+  switch (level) {
+    case -1:
+      return '2a';
+    case 0:
+      return 'a';
+    case 1:
+      return 'a/4';
+    case 2:
+      return 'a/16';
+  }
+}
+
+/** Coerce legacy numeric placeLevel (-1|0|1|2) or scale string. */
+export function coerceScaleLevel(value: unknown): ScaleLevel | undefined {
+  if (typeof value === 'string' && (SCALE_LEVELS as string[]).includes(value)) {
+    return value as ScaleLevel;
+  }
+  if (value === -1) return '2a';
+  if (value === 0) return 'a';
+  if (value === 1) return 'a/4';
+  if (value === 2) return 'a/16';
+  return undefined;
+}
+
+export function stepScaleLevel(
+  level: ScaleLevel,
+  direction: 'up' | 'down',
+): ScaleLevel | null {
+  const i = SCALE_LEVELS.indexOf(level);
+  if (i < 0) return null;
+  const next = direction === 'up' ? i + 1 : i - 1;
+  if (next < 0 || next >= SCALE_LEVELS.length) return null;
+  return SCALE_LEVELS[next];
+}
+
+export function scaleLevelLabel(level: ScaleLevel): string {
+  return level;
 }
 
 export function finestCellToWorldRect(col: number, row: number, a: number): Rect {
@@ -193,27 +251,30 @@ export function finestCellToWorldRect(col: number, row: number, a: number): Rect
   return { x: col * f, y: row * f, width: f, height: f };
 }
 
-/** Convert catalog W×H (in level-1 / a/4 cells) to finest. */
+/** Convert catalog W×H (in a/4 cells) to finest. */
 export function catalogToFinestSize(widthCells: number, heightCells: number): {
   widthCells: number;
   heightCells: number;
 } {
-  return catalogToFinestSizeAtLevel(widthCells, heightCells, 1);
+  return catalogToFinestSizeAtLevel(widthCells, heightCells, 'a/4');
 }
 
 /**
- * Convert catalog W×H cell counts at the current place level into finest cells.
+ * Convert catalog W×H cell counts at the given scale level into finest cells.
  * Catalog types stay authored as cell counts; interpretation follows `level`.
  */
 export function catalogToFinestSizeAtLevel(
   widthCells: number,
   heightCells: number,
-  level: NamedGridLevel,
+  level: ScaleLevel | NamedGridLevel,
 ): {
   widthCells: number;
   heightCells: number;
 } {
-  const scale = finestPerLevelCell(level);
+  const scale =
+    typeof level === 'string'
+      ? finestPerScaleLevel(level)
+      : finestPerLevelCell(level);
   return {
     widthCells: widthCells * scale,
     heightCells: heightCells * scale,

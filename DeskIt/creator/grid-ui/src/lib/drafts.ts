@@ -4,16 +4,18 @@ import type {
   FloorConfig,
   FloorZone,
   GridCell,
+  ScaleLevel,
   UnusableRegion,
 } from '../types/geometry';
 import type { Viewport } from '../types/viewport';
 import {
   compactEntityForSave,
   compactLibraryItemForSave,
-  hydratePolygonEntity,
   normalizeUnusable,
   normalizeZone,
+  resolvePolygonEntity,
 } from '../geometry/shapeStorage';
+import { coerceScaleLevel } from '../geometry/grid';
 
 export type FloorDocument = {
   version: 2;
@@ -25,6 +27,8 @@ export type FloorDocument = {
   zones: FloorZone[];
   customLibrary: CustomLibraryEntry[];
   unusableRegions?: UnusableRegion[];
+  /** Locked place size level; set on first place / polygon save. */
+  layoutPlaceLevel?: ScaleLevel;
   /** @deprecated migrated to unusableRegions on load */
   unusableCells?: GridCell[];
   /** @deprecated ignored */
@@ -54,32 +58,66 @@ export function normalizeUnusableRegions(doc: FloorDocument): UnusableRegion[] {
   return [];
 }
 
+function migrateEntityPlaceLevel(entity: Entity): Entity {
+  const placeLevel = coerceScaleLevel(entity.placeLevel);
+  return placeLevel !== undefined ? { ...entity, placeLevel } : entity;
+}
+
+function migrateLibraryPlaceLevel(item: CustomLibraryEntry): CustomLibraryEntry {
+  const placeLevel = coerceScaleLevel(item.placeLevel);
+  return placeLevel !== undefined ? { ...item, placeLevel } : item;
+}
+
+/** Infer layoutPlaceLevel from first entity if missing. */
+export function inferLayoutPlaceLevel(doc: FloorDocument): ScaleLevel | undefined {
+  const existing = coerceScaleLevel(doc.layoutPlaceLevel);
+  if (existing) return existing;
+  for (const e of doc.entities) {
+    const pl = coerceScaleLevel(e.placeLevel);
+    if (pl) return pl;
+  }
+  for (const item of doc.customLibrary) {
+    const pl = coerceScaleLevel(item.placeLevel);
+    if (pl) return pl;
+  }
+  return undefined;
+}
+
 export function normalizeDocument(doc: FloorDocument): FloorDocument {
+  const customLibrary = doc.customLibrary.map((item) => {
+    const migrated = migrateLibraryPlaceLevel(item);
+    if (!migrated.cells?.length && !migrated.outline?.length) return migrated;
+    const hydrated = resolvePolygonEntity(
+      {
+        objectId: migrated.id,
+        category: migrated.category,
+        elementType: migrated.elementType,
+        origin: { col: 0, row: 0 },
+        widthCells: migrated.widthCells,
+        heightCells: migrated.heightCells,
+        cells: migrated.cells,
+        outline: migrated.outline,
+        svgPath: migrated.svgPath,
+        placeLevel: migrated.placeLevel,
+      },
+      [migrated],
+    );
+    return {
+      ...migrated,
+      cells: undefined,
+      outline: hydrated.outline,
+      svgPath: hydrated.svgPath,
+    };
+  });
+
   return {
     ...doc,
-    entities: doc.entities.map(hydratePolygonEntity),
+    layoutPlaceLevel: inferLayoutPlaceLevel(doc),
+    entities: doc.entities
+      .map(migrateEntityPlaceLevel)
+      .map((e) => resolvePolygonEntity(e, customLibrary)),
     zones: doc.zones.map(normalizeZone),
-    customLibrary: doc.customLibrary.map((item) => {
-      if (!item.cells?.length && !item.outline?.length) return item;
-      const hydrated = hydratePolygonEntity({
-        objectId: item.id,
-        category: item.category,
-        elementType: item.elementType,
-        origin: { col: 0, row: 0 },
-        widthCells: item.widthCells,
-        heightCells: item.heightCells,
-        cells: item.cells,
-        outline: item.outline,
-        svgPath: item.svgPath,
-        placeLevel: item.placeLevel,
-      });
-      return {
-        ...item,
-        cells: undefined,
-        outline: hydrated.outline,
-        svgPath: hydrated.svgPath,
-      };
-    }),
+    customLibrary,
     unusableRegions: normalizeUnusableRegions(doc),
   };
 }
@@ -95,11 +133,13 @@ export function sanitizeDocument(doc: FloorDocument): FloorDocument {
     ...rest,
     unusableRegions: normalizeUnusableRegions(doc),
   });
+  const library = normalized.customLibrary;
   return {
     ...normalized,
-    entities: normalized.entities.map(compactEntityForSave),
+    layoutPlaceLevel: inferLayoutPlaceLevel(normalized),
+    entities: normalized.entities.map((e) => compactEntityForSave(e, library)),
     zones: normalized.zones.map(normalizeZone),
-    customLibrary: normalized.customLibrary.map(compactLibraryItemForSave),
+    customLibrary: library.map(compactLibraryItemForSave),
     unusableRegions: (normalized.unusableRegions ?? []).map(normalizeUnusable),
   };
 }

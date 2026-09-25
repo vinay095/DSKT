@@ -1,11 +1,20 @@
 import React from 'react';
-import type { Entity, FloorConfig, FloorZone, UnusableRegion } from '../types/geometry';
+import type {
+  Entity,
+  FloorConfig,
+  FloorZone,
+  ScaleLevel,
+  UnusableRegion,
+} from '../types/geometry';
+import { SCALE_LEVELS, scaleLevelLabel, stepScaleLevel } from '../geometry/grid';
 
 interface PropertiesPanelProps {
   floor: FloorConfig;
   onFloorChange: (next: FloorConfig) => void;
   selected: Entity[];
   onUpdateSelected: (patch: Partial<Entity>) => void;
+  layoutPlaceLevel: ScaleLevel;
+  onScaleLayout: (direction: 'up' | 'down') => void;
   zones: FloorZone[];
   onDeleteZone: (id: string) => void;
   onUpdateZone: (id: string, patch: Partial<FloorZone>) => void;
@@ -13,7 +22,6 @@ interface PropertiesPanelProps {
   onLabelUnusableRegion: (id: string) => void;
   onDeleteUnusableRegion: (id: string) => void;
   onExportJson: () => void;
-  onCopyJson: () => void;
   onImportJson: (file: File) => void;
 }
 
@@ -38,6 +46,8 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   onFloorChange,
   selected,
   onUpdateSelected,
+  layoutPlaceLevel,
+  onScaleLayout,
   zones,
   onDeleteZone,
   onUpdateZone,
@@ -45,10 +55,11 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   onLabelUnusableRegion,
   onDeleteUnusableRegion,
   onExportJson,
-  onCopyJson,
   onImportJson,
 }) => {
   const single = selected.length === 1 ? selected[0] : null;
+  const canScaleDown = stepScaleLevel(layoutPlaceLevel, 'down') !== null;
+  const canScaleUp = stepScaleLevel(layoutPlaceLevel, 'up') !== null;
 
   return (
     <aside className="side-panel right-panel" aria-label="Properties">
@@ -93,8 +104,30 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           />
         </label>
         <p className="panel-hint">
-          Levels: 2a → a → a/4 → a/16. Place on the current level; store at a/16.
+          Zoom grid: 2a → a → a/4 → a/16. Layout scale: {SCALE_LEVELS.join(' · ')}.
         </p>
+        <div className="prop-field">
+          <span>Scale layout</span>
+          <div className="prop-actions">
+            <button
+              type="button"
+              className="toolbar-btn"
+              disabled={!canScaleDown}
+              onClick={() => onScaleLayout('down')}
+            >
+              Scale down
+            </button>
+            <span className="panel-hint mono">{scaleLevelLabel(layoutPlaceLevel)}</span>
+            <button
+              type="button"
+              className="toolbar-btn"
+              disabled={!canScaleUp}
+              onClick={() => onScaleLayout('up')}
+            >
+              Scale up
+            </button>
+          </div>
+        </div>
       </section>
 
       <section className="prop-section">
@@ -162,85 +195,97 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       </section>
 
       <section className="prop-section">
-        <h3>Zones</h3>
-        {zones.length === 0 && <p className="panel-hint">No marked zones.</p>}
-        <ul className="zone-list">
-          {zones.map((z) => (
-            <li key={z.id} className="zone-list-item">
-              <label className="zone-swatch-wrap" title={z.locked ? 'Unlock to change color' : 'Change color'}>
-                <span className="zone-swatch" style={{ background: z.color }} />
-                <input
-                  type="color"
-                  value={rgbaToHex(z.color)}
+        <details>
+          <summary>
+            <h3 style={{ display: 'inline' }}>Zones</h3>
+            <span className="panel-hint"> ({zones.length})</span>
+          </summary>
+          {zones.length === 0 && <p className="panel-hint">No marked zones.</p>}
+          <ul className="zone-list">
+            {zones.map((z) => (
+              <li key={z.id} className="zone-list-item">
+                <label
+                  className="zone-swatch-wrap"
+                  title={z.locked ? 'Unlock to change color' : 'Change color'}
+                >
+                  <span className="zone-swatch" style={{ background: z.color }} />
+                  <input
+                    type="color"
+                    value={rgbaToHex(z.color)}
+                    disabled={Boolean(z.locked)}
+                    onChange={(e) =>
+                      onUpdateZone(z.id, { color: hexToZoneRgba(e.target.value) })
+                    }
+                    aria-label={`Color for ${z.label}`}
+                  />
+                </label>
+                <span>
+                  {z.label}
+                  {z.locked ? ' (locked)' : ''}
+                </span>
+                <button
+                  type="button"
+                  className="toolbar-btn ghost"
+                  onClick={() => onUpdateZone(z.id, { locked: !z.locked })}
+                >
+                  {z.locked ? 'Unlock' : 'Lock'}
+                </button>
+                <button
+                  type="button"
+                  className="toolbar-btn ghost"
                   disabled={Boolean(z.locked)}
-                  onChange={(e) =>
-                    onUpdateZone(z.id, { color: hexToZoneRgba(e.target.value) })
-                  }
-                  aria-label={`Color for ${z.label}`}
-                />
-              </label>
-              <span>
-                {z.label}
-                {z.locked ? ' (locked)' : ''}
-              </span>
-              <button
-                type="button"
-                className="toolbar-btn ghost"
-                onClick={() => onUpdateZone(z.id, { locked: !z.locked })}
-              >
-                {z.locked ? 'Unlock' : 'Lock'}
-              </button>
-              <button
-                type="button"
-                className="toolbar-btn ghost"
-                disabled={Boolean(z.locked)}
-                onClick={() => onDeleteZone(z.id)}
-              >
-                Delete
-              </button>
-            </li>
-          ))}
-        </ul>
+                  onClick={() => onDeleteZone(z.id)}
+                >
+                  Delete
+                </button>
+              </li>
+            ))}
+          </ul>
+        </details>
       </section>
 
       <section className="prop-section">
-        <h3>Unusable</h3>
-        {unusableRegions.length === 0 && <p className="panel-hint">No unusable regions.</p>}
-        <ul className="zone-list">
-          {unusableRegions.map((r) => (
-            <li key={r.id} className="zone-list-item">
-              <span>{r.label || '(unlabeled)'}</span>
-              <button
-                type="button"
-                className="toolbar-btn ghost"
-                onClick={() => onLabelUnusableRegion(r.id)}
-              >
-                Label
-              </button>
-              <button
-                type="button"
-                className="toolbar-btn ghost"
-                onClick={() => onDeleteUnusableRegion(r.id)}
-              >
-                Delete
-              </button>
-            </li>
-          ))}
-        </ul>
+        <details>
+          <summary>
+            <h3 style={{ display: 'inline' }}>Unusable</h3>
+            <span className="panel-hint"> ({unusableRegions.length})</span>
+          </summary>
+          {unusableRegions.length === 0 && (
+            <p className="panel-hint">No unusable regions.</p>
+          )}
+          <ul className="zone-list">
+            {unusableRegions.map((r) => (
+              <li key={r.id} className="zone-list-item">
+                <span>{r.label || '(unlabeled)'}</span>
+                <button
+                  type="button"
+                  className="toolbar-btn ghost"
+                  onClick={() => onLabelUnusableRegion(r.id)}
+                >
+                  Label
+                </button>
+                <button
+                  type="button"
+                  className="toolbar-btn ghost"
+                  onClick={() => onDeleteUnusableRegion(r.id)}
+                >
+                  Delete
+                </button>
+              </li>
+            ))}
+          </ul>
+        </details>
       </section>
 
       <section className="prop-section">
-        <h3>Floor JSON</h3>
-        <p className="panel-hint">Export layout for preview.</p>
+        <h3>Floor file</h3>
+        <p className="panel-hint">Download or load a floor layout.</p>
         <div className="prop-actions">
           <button type="button" className="toolbar-btn" onClick={onExportJson}>
-            Download JSON
-          </button>
-          <button type="button" className="toolbar-btn" onClick={onCopyJson}>
-            Copy JSON
+            Download
           </button>
           <label className="toolbar-btn" style={{ cursor: 'pointer' }}>
-            Load JSON
+            Load
             <input
               type="file"
               accept="application/json,.json"
