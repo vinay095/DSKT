@@ -8,16 +8,16 @@
           "elementType": "computer",
           "label": "Computer desk",
           "svg": "computer.svg",
-          "widthCells": 4,
-          "heightCells": 2,
+          "widthCells": 2,
+          "heightCells": 1,
           "color": "#3b82f6"
         },
         {
           "elementType": "corner-desk",
           "label": "Corner desk",
           "svg": "corner-desk.svg",
-          "widthCells": 6,
-          "heightCells": 4,
+          "widthCells": 2,
+          "heightCells": 3,
           "color": "#2563eb"
         },
         {
@@ -25,7 +25,7 @@
           "label": "Monitor",
           "svg": "computer-monitor.svg",
           "widthCells": 2,
-          "heightCells": 2,
+          "heightCells": 1,
           "color": "#60a5fa"
         },
         {
@@ -33,7 +33,7 @@
           "label": "Drawer unit",
           "svg": "drawer.svg",
           "widthCells": 2,
-          "heightCells": 2,
+          "heightCells": 1,
           "color": "#3b82f6"
         },
         {
