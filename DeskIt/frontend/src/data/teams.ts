@@ -8,7 +8,9 @@ export interface Team {
   color: string;
 }
 
-/** Stable team palette — used for HR mapper color grouping. */
+/** Stable team palette — assignment/ownership indicators only (PART 15).
+ * Do not use these colors as element/category fills — those live in categoryStyles.
+ */
 export const TEAMS: Team[] = [
   { id: 'team-fe', name: 'Frontend Core', departmentId: 'dept-eng', departmentName: 'Engineering', color: '#3B82F6' },
   { id: 'team-be', name: 'Backend Services', departmentId: 'dept-eng', departmentName: 'Engineering', color: '#2563EB' },

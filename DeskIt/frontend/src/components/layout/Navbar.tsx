@@ -1,27 +1,34 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { ThemeToggle } from '../common/ThemeToggle';
 import { RoleBadge } from '../common/RoleBadge';
 import { UserRole } from '../../types/auth';
-import { AVAILABLE_FLOORS } from '../../data/floors';
+import type { FloorOption } from '../../types/office';
+import { OFFICES, floorsForOffice } from '../../data/offices';
 import {
   Building2,
   Search,
   ChevronDown,
   LogOut,
   Sparkles,
-  ShieldCheck
+  ShieldCheck,
 } from 'lucide-react';
 
 interface NavbarProps {
+  activeOfficeId: string;
   activeFloorId: string;
+  floors: FloorOption[];
+  onOfficeChange: (officeId: string) => void;
   onFloorChange: (floorId: string) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
+  activeOfficeId,
   activeFloorId,
+  floors,
+  onOfficeChange,
   onFloorChange,
   searchQuery,
   onSearchChange,
@@ -30,17 +37,26 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
 
+  const officeFloors = useMemo(
+    () => floorsForOffice(activeOfficeId, floors),
+    [activeOfficeId, floors],
+  );
+
   const rolesList: { role: UserRole; title: string }[] = [
     { role: 'employee', title: 'Employee View' },
     { role: 'hr', title: 'HR Manager' },
     { role: 'admin', title: 'Admin Editor' },
   ];
 
+  const searchPlaceholder =
+    user?.role === 'employee'
+      ? 'Search anyone across all offices (name, team, desk…)'
+      : 'Search colleagues, desks (e.g. A-101), teams…';
+
   return (
     <header className="sticky top-0 z-30 h-16 bg-light-card/90 dark:bg-dark-card/90 border-b border-light-border dark:border-dark-border backdrop-blur-md px-4 sm:px-6 flex items-center justify-between transition-colors">
-      {/* Brand & Floor Selector */}
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center gap-2.5 shrink-0">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-brandBlue-600 to-brandBlue-500 dark:from-brandPurple-600 dark:to-brandPurple-500 flex items-center justify-center text-white shadow-md shadow-brandBlue-500/20 dark:shadow-brandPurple-500/20">
             <Building2 className="w-5 h-5" />
           </div>
@@ -54,18 +70,37 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        <div className="h-6 w-px bg-light-border dark:bg-dark-border hidden sm:block" />
+        <div className="h-6 w-px bg-light-border dark:border-dark-border hidden sm:block" />
 
-        {/* Floor Dropdown Selector */}
+        {/* Office selector */}
+        <div className="relative">
+          <select
+            value={activeOfficeId}
+            onChange={(e) => onOfficeChange(e.target.value)}
+            className="appearance-none bg-slate-100 dark:bg-dark-sidebar border border-light-border dark:border-dark-border rounded-xl px-3 py-1.5 pr-8 text-xs font-semibold text-light-text dark:text-dark-text focus:outline-none focus:ring-2 focus:ring-brandBlue-500 dark:focus:ring-brandPurple-500 cursor-pointer transition max-w-[9.5rem]"
+            title="Office / location"
+          >
+            {OFFICES.map((office) => (
+              <option key={office.id} value={office.id}>
+                {office.name}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-light-muted dark:text-dark-muted" />
+        </div>
+
+        {/* Floor selector (scoped to office) */}
         <div className="relative">
           <select
             value={activeFloorId}
             onChange={(e) => onFloorChange(e.target.value)}
-            className="appearance-none bg-slate-100 dark:bg-dark-sidebar border border-light-border dark:border-dark-border rounded-xl px-3 py-1.5 pr-8 text-xs font-semibold text-light-text dark:text-dark-text focus:outline-none focus:ring-2 focus:ring-brandBlue-500 dark:focus:ring-brandPurple-500 cursor-pointer transition"
+            className="appearance-none bg-slate-100 dark:bg-dark-sidebar border border-light-border dark:border-dark-border rounded-xl px-3 py-1.5 pr-8 text-xs font-semibold text-light-text dark:text-dark-text focus:outline-none focus:ring-2 focus:ring-brandBlue-500 dark:focus:ring-brandPurple-500 cursor-pointer transition max-w-[14rem]"
+            title="Floor plan"
           >
-            {AVAILABLE_FLOORS.map((floor) => (
+            {officeFloors.map((floor) => (
               <option key={floor.id} value={floor.id}>
-                {floor.label}
+                {floor.shortLabel}
+                {floor.isCustom ? ' (clone)' : ''}
               </option>
             ))}
           </select>
@@ -73,7 +108,6 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </div>
 
-      {/* Global Search Bar */}
       <div className="flex-1 max-w-md mx-4 hidden md:block">
         <div className="relative">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-light-muted dark:text-dark-muted" />
@@ -81,15 +115,13 @@ export const Navbar: React.FC<NavbarProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search colleagues, desks (e.g. A-101), teams..."
+            placeholder={searchPlaceholder}
             className="w-full bg-slate-100 dark:bg-dark-sidebar border border-light-border dark:border-dark-border rounded-xl pl-9 pr-4 py-1.5 text-xs text-light-text dark:text-dark-text placeholder-light-muted dark:placeholder-dark-muted focus:outline-none focus:ring-2 focus:ring-brandBlue-500 dark:focus:ring-brandPurple-500 transition"
           />
         </div>
       </div>
 
-      {/* Controls & User Profile */}
       <div className="flex items-center gap-3">
-        {/* Role Fast Switcher */}
         <div className="relative">
           <button
             onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)}
@@ -117,7 +149,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                     setIsRoleDropdownOpen(false);
                   }}
                   className={`w-full text-left px-3 py-2 text-xs font-medium flex items-center justify-between hover:bg-slate-100 dark:hover:bg-dark-sidebar transition ${
-                    user?.role === r.role ? 'bg-brandBlue-50 dark:bg-brandPurple-900/30 text-brandBlue-600 dark:text-brandPurple-400 font-bold' : 'text-light-text dark:text-dark-text'
+                    user?.role === r.role
+                      ? 'bg-brandBlue-50 dark:bg-brandPurple-900/30 text-brandBlue-600 dark:text-brandPurple-400 font-bold'
+                      : 'text-light-text dark:text-dark-text'
                   }`}
                 >
                   <span>{r.title}</span>
@@ -128,12 +162,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
         </div>
 
-        {/* Dark/Light Mode Theme Toggle */}
         <ThemeToggle />
 
-        <div className="h-6 w-px bg-light-border dark:bg-dark-border" />
+        <div className="h-6 w-px bg-light-border dark:border-dark-border" />
 
-        {/* User Profile Menu */}
         {user ? (
           <div className="relative">
             <button

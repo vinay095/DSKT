@@ -2,6 +2,8 @@ import React from 'react';
 import { DeskElement, RoomElement, ZoneElement, UnusableRegion } from '../../types/floorplan';
 import { UserRole } from '../../types/auth';
 import { EMPLOYEE_STATUS_CONFIG } from '../../types/database';
+import type { MapElementSelection } from './PublishedFloorMap';
+import { getCategoryStyle } from '../../lib/categoryStyles';
 import {
   Building,
   Monitor,
@@ -9,7 +11,8 @@ import {
   UserCheck,
   RotateCw,
   Trash2,
-  CheckCircle2
+  CheckCircle2,
+  Layers,
 } from 'lucide-react';
 
 interface PropertiesPanelProps {
@@ -17,11 +20,15 @@ interface PropertiesPanelProps {
   selectedRoom?: RoomElement | null;
   selectedZone?: ZoneElement | null;
   selectedUnusable?: UnusableRegion | null;
+  /** Non-desk published map element (furniture, text, etc.) */
+  selectedMapElement?: MapElementSelection | null;
   role?: UserRole;
   onClose: () => void;
   onRotate?: () => void;
   onDelete?: () => void;
   onAssignClick?: (desk: DeskElement) => void;
+  /** Optional office/floor labels for HR seat context */
+  floorContext?: { building?: string; floorName?: string };
 }
 
 export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
@@ -29,13 +36,21 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   selectedRoom,
   selectedZone,
   selectedUnusable,
+  selectedMapElement,
   role = 'employee',
   onClose,
   onRotate,
   onDelete,
   onAssignClick,
+  floorContext,
 }) => {
-  if (!selectedDesk && !selectedRoom && !selectedZone && !selectedUnusable) {
+  if (
+    !selectedDesk &&
+    !selectedRoom &&
+    !selectedZone &&
+    !selectedUnusable &&
+    !selectedMapElement
+  ) {
     return (
       <div className="w-full lg:w-80 bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-2xl p-5 shadow-sm flex flex-col justify-center items-center text-center text-light-muted dark:text-dark-muted space-y-3">
         <Building className="w-10 h-10 opacity-40 text-brandBlue-500 dark:text-brandPurple-400" />
@@ -43,7 +58,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           Interactive Object Inspector
         </h4>
         <p className="text-xs max-w-xs">
-          Click any desk, meeting pod, or department zone in the floor map to view logical geometry and occupant details.
+          Select a seat or floor element to view details.
         </p>
       </div>
     );
@@ -125,8 +140,37 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           ) : (
             <div className="p-3.5 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs">
               <p className="font-bold flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Unassigned Workstation
+                <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Available — unassigned
               </p>
+              <p className="mt-1 text-[11px] opacity-80">
+                Use Assign Employee to place someone at Desk {selectedDesk.code}.
+              </p>
+            </div>
+          )}
+
+          {(floorContext?.building || floorContext?.floorName) && (
+            <div className="space-y-2">
+              <p className="text-xs font-bold uppercase tracking-wider text-light-muted dark:text-dark-muted">
+                Office / Floor
+              </p>
+              <div className="grid grid-cols-1 gap-2 text-xs">
+                {floorContext.building && (
+                  <div className="p-2 rounded-lg bg-slate-50 dark:bg-dark-sidebar border border-light-border dark:border-dark-border">
+                    <span className="text-[10px] text-light-muted dark:text-dark-muted block">Office</span>
+                    <span className="font-semibold text-light-text dark:text-dark-text">
+                      {floorContext.building}
+                    </span>
+                  </div>
+                )}
+                {floorContext.floorName && (
+                  <div className="p-2 rounded-lg bg-slate-50 dark:bg-dark-sidebar border border-light-border dark:border-dark-border">
+                    <span className="text-[10px] text-light-muted dark:text-dark-muted block">Floor</span>
+                    <span className="font-semibold text-light-text dark:text-dark-text">
+                      {floorContext.floorName}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -242,6 +286,92 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             <p><span className="font-bold">Department:</span> {selectedZone.department}</p>
             <p><span className="font-bold">Grid Area:</span> {selectedZone.width}x{selectedZone.height} Units</p>
           </div>
+          <button
+            onClick={onClose}
+            className="w-full py-2 px-4 rounded-xl border border-light-border dark:border-dark-border text-light-muted dark:text-dark-muted hover:bg-slate-100 dark:hover:bg-dark-sidebar font-semibold text-xs transition"
+          >
+            Close Details
+          </button>
+        </div>
+      )}
+
+      {/* PUBLISHED MAP ELEMENT (furniture / text / etc.) */}
+      {selectedMapElement && !selectedDesk && (
+        <div className="space-y-4">
+          <div className="pb-3 border-b border-light-border dark:border-dark-border flex items-start justify-between gap-2">
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-light-muted dark:text-dark-muted">
+                Floor element
+              </span>
+              <h3 className="text-lg font-extrabold text-light-text dark:text-dark-text">
+                {selectedMapElement.label ||
+                  selectedMapElement.elementType.replace(/-/g, ' ') ||
+                  selectedMapElement.category}
+              </h3>
+            </div>
+            <Layers className="w-5 h-5 text-brandBlue-500 dark:text-brandPurple-400 shrink-0" />
+          </div>
+          <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-dark-sidebar border border-light-border dark:border-dark-border space-y-2 text-xs">
+            <p>
+              <span className="font-bold">Category:</span>{' '}
+              {selectedMapElement.category.replace(/_/g, ' ')}
+            </p>
+            <p>
+              <span className="font-bold">Type:</span>{' '}
+              {selectedMapElement.elementType.replace(/-/g, ' ')}
+            </p>
+            {selectedMapElement.label && (
+              <p>
+                <span className="font-bold">Label:</span> {selectedMapElement.label}
+              </p>
+            )}
+            <p>
+              <span className="font-bold">Size:</span> {selectedMapElement.widthCells}×
+              {selectedMapElement.heightCells} cells
+            </p>
+            {(role === 'hr' || role === 'admin') && (
+              <p className="text-[11px] text-amber-700 dark:text-amber-300 pt-1 border-t border-light-border dark:border-dark-border mt-2">
+                Seat assignment works on workstations/desks. Click a desk on the map, then use
+                Assign Employee in the inspector.
+              </p>
+            )}
+            {(() => {
+              const style = getCategoryStyle(
+                selectedMapElement.category,
+                selectedMapElement.elementType,
+                selectedMapElement.color,
+              );
+              return (
+                <p className="flex items-center gap-2">
+                  <span className="font-bold">Appearance:</span>
+                  <span
+                    className="inline-block w-4 h-4 rounded border border-light-border dark:border-dark-border"
+                    style={{ backgroundColor: style.fill }}
+                    title={style.fill}
+                  />
+                  <span className="font-mono text-[10px] text-light-muted dark:text-dark-muted">
+                    {style.label}
+                  </span>
+                </p>
+              );
+            })()}
+          </div>
+          {(floorContext?.building || floorContext?.floorName) && (
+            <div className="grid grid-cols-1 gap-2 text-xs">
+              {floorContext.building && (
+                <div className="p-2 rounded-lg bg-slate-50 dark:bg-dark-sidebar border border-light-border dark:border-dark-border">
+                  <span className="text-[10px] text-light-muted dark:text-dark-muted block">Office</span>
+                  <span className="font-semibold">{floorContext.building}</span>
+                </div>
+              )}
+              {floorContext.floorName && (
+                <div className="p-2 rounded-lg bg-slate-50 dark:bg-dark-sidebar border border-light-border dark:border-dark-border">
+                  <span className="text-[10px] text-light-muted dark:text-dark-muted block">Floor</span>
+                  <span className="font-semibold">{floorContext.floorName}</span>
+                </div>
+              )}
+            </div>
+          )}
           <button
             onClick={onClose}
             className="w-full py-2 px-4 rounded-xl border border-light-border dark:border-dark-border text-light-muted dark:text-dark-muted hover:bg-slate-100 dark:hover:bg-dark-sidebar font-semibold text-xs transition"

@@ -1,6 +1,14 @@
 import { useState, useCallback, useRef } from 'react';
 import { Viewport, ScreenPoint, FloorConfig } from '../types/geometry';
 import { calculateZoomAroundPoint } from '../geometry/coordinates';
+import {
+  clampZoom,
+  wheelZoomFactor,
+  ZOOM_BUTTON_FACTOR,
+  ZOOM_MIN,
+  ZOOM_MAX,
+  FIT_PADDING,
+} from '../geometry/zoom';
 import { DEFAULT_FLOOR_CONFIG, getFloorWorldDimensions } from '../geometry/grid';
 
 interface UseViewportOptions {
@@ -12,19 +20,23 @@ interface UseViewportOptions {
 
 export function useViewport(options: UseViewportOptions = {}) {
   const {
-    initialViewport = { panX: 40, panY: 600, zoom: 0.8 },
-    minZoom = 0.3,
-    maxZoom = 3.5,
+    initialViewport = { panX: 40, panY: 40, zoom: 1 },
+    minZoom = ZOOM_MIN,
+    maxZoom = ZOOM_MAX,
     floorConfig = DEFAULT_FLOOR_CONFIG,
   } = options;
 
   const [viewport, setViewport] = useState<Viewport>(initialViewport);
   const [isPanning, setIsPanning] = useState(false);
-  const panStartRef = useRef<{ screenX: number; screenY: number; initialPanX: number; initialPanY: number } | null>(null);
+  const panStartRef = useRef<{
+    screenX: number;
+    screenY: number;
+    initialPanX: number;
+    initialPanY: number;
+  } | null>(null);
+  const viewportRef = useRef(viewport);
+  viewportRef.current = viewport;
 
-  /**
-   * CAD/Figma-style Wheel Zoom centered around the mouse cursor position.
-   */
   const handleWheelZoom = useCallback(
     (e: React.WheelEvent<SVGSVGElement>, svgElement: SVGSVGElement | null) => {
       e.preventDefault();
@@ -36,18 +48,14 @@ export function useViewport(options: UseViewportOptions = {}) {
         screenY: e.clientY - rect.top,
       };
 
-      const zoomFactor = e.deltaY < 0 ? 1.12 : 0.88;
-      const targetZoom = Math.min(maxZoom, Math.max(minZoom, viewport.zoom * zoomFactor));
-
-      const newViewport = calculateZoomAroundPoint(cursorScreen, viewport, targetZoom);
-      setViewport(newViewport);
+      const factor = wheelZoomFactor(e.deltaY);
+      const current = viewportRef.current;
+      const targetZoom = clampZoom(current.zoom * factor, minZoom, maxZoom);
+      setViewport(calculateZoomAroundPoint(cursorScreen, current, targetZoom));
     },
-    [viewport, minZoom, maxZoom]
+    [minZoom, maxZoom],
   );
 
-  /**
-   * Starts pan gesture (e.g., middle click, drag, or space+drag).
-   */
   const startPan = useCallback(
     (e: React.MouseEvent<SVGSVGElement>, svgElement: SVGSVGElement | null) => {
       if (!svgElement) return;
@@ -60,19 +68,15 @@ export function useViewport(options: UseViewportOptions = {}) {
       };
       setIsPanning(true);
     },
-    [viewport.panX, viewport.panY]
+    [viewport.panX, viewport.panY],
   );
 
-  /**
-   * Updates pan offset during mouse movement.
-   */
   const updatePan = useCallback(
     (e: React.MouseEvent<SVGSVGElement>, svgElement: SVGSVGElement | null) => {
       if (!isPanning || !panStartRef.current || !svgElement) return;
       const rect = svgElement.getBoundingClientRect();
       const currentX = e.clientX - rect.left;
       const currentY = e.clientY - rect.top;
-
       const deltaX = currentX - panStartRef.current.screenX;
       const deltaY = currentY - panStartRef.current.screenY;
 
@@ -82,55 +86,61 @@ export function useViewport(options: UseViewportOptions = {}) {
         panY: panStartRef.current!.initialPanY + deltaY,
       }));
     },
-    [isPanning]
+    [isPanning],
   );
 
-  /**
-   * Ends pan gesture.
-   */
   const endPan = useCallback(() => {
     setIsPanning(false);
     panStartRef.current = null;
   }, []);
 
-  /**
-   * Recalculates viewport zoom and pan to fit the entire floor boundary neatly inside the SVG container.
-   */
   const fitToFloor = useCallback(
     (containerWidth: number, containerHeight: number) => {
+      if (containerWidth < 10 || containerHeight < 10) return;
       const { width: worldW, height: worldH } = getFloorWorldDimensions(floorConfig);
-      const padding = 60;
-
-      const scaleX = (containerWidth - padding * 2) / worldW;
-      const scaleY = (containerHeight - padding * 2) / worldH;
-      const fitZoom = Math.min(scaleX, scaleY, 1.2);
-
-      const targetPanX = (containerWidth - worldW * fitZoom) / 2;
-      const targetPanY = (containerHeight + worldH * fitZoom) / 2;
+      const pad = FIT_PADDING;
+      const scaleX = (containerWidth - pad * 2) / worldW;
+      const scaleY = (containerHeight - pad * 2) / worldH;
+      // Clamp only by shared min/max — do not hard-cap fit at 1.2
+      const fitZoom = clampZoom(Math.min(scaleX, scaleY), minZoom, maxZoom);
 
       setViewport({
-        panX: Math.round(targetPanX),
-        panY: Math.round(targetPanY),
+        panX: Math.round((containerWidth - worldW * fitZoom) / 2),
+        panY: Math.round((containerHeight + worldH * fitZoom) / 2),
         zoom: Number(fitZoom.toFixed(3)),
       });
     },
-    [floorConfig]
+    [floorConfig, minZoom, maxZoom],
   );
 
-  /**
-   * Resets viewport to default zoom and pan.
-   */
   const resetView = useCallback(() => {
     setViewport(initialViewport);
   }, [initialViewport]);
 
-  const zoomIn = useCallback(() => {
-    setViewport((prev) => ({ ...prev, zoom: Math.min(maxZoom, Number((prev.zoom * 1.2).toFixed(2))) }));
-  }, [maxZoom]);
+  /** Zoom in/out around a screen-space anchor (defaults to container center). */
+  const zoomAt = useCallback(
+    (factor: number, anchor: ScreenPoint) => {
+      setViewport((prev) => {
+        const targetZoom = clampZoom(prev.zoom * factor, minZoom, maxZoom);
+        return calculateZoomAroundPoint(anchor, prev, targetZoom);
+      });
+    },
+    [minZoom, maxZoom],
+  );
 
-  const zoomOut = useCallback(() => {
-    setViewport((prev) => ({ ...prev, zoom: Math.max(minZoom, Number((prev.zoom / 1.2).toFixed(2))) }));
-  }, [minZoom]);
+  const zoomIn = useCallback(
+    (centerX: number, centerY: number) => {
+      zoomAt(ZOOM_BUTTON_FACTOR, { screenX: centerX, screenY: centerY });
+    },
+    [zoomAt],
+  );
+
+  const zoomOut = useCallback(
+    (centerX: number, centerY: number) => {
+      zoomAt(1 / ZOOM_BUTTON_FACTOR, { screenX: centerX, screenY: centerY });
+    },
+    [zoomAt],
+  );
 
   return {
     viewport,

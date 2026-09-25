@@ -12,6 +12,7 @@ import { PropertiesPanel } from './PropertiesPanel';
 import { DeskNode } from './DeskNode';
 import { DEPARTMENTS } from '../../data/mockData';
 import { TEAMS, getTeamColor, defaultTeamForDepartment } from '../../data/teams';
+import { ColorHierarchyLegend } from '../common/ColorHierarchyLegend';
 import { cn } from '../../lib/cn';
 import {
   ZoomIn,
@@ -44,6 +45,8 @@ export const FloorPlanViewer: React.FC<FloorPlanViewerProps> = ({
   const isHr = hrMode || user?.role === 'hr';
   const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  /** SVG drawing pane only — fit/zoom must measure this, not the outer card. */
+  const svgPaneRef = useRef<HTMLDivElement | null>(null);
 
   const floorConfig = floorPlan.floorConfig || DEFAULT_FLOOR_CONFIG;
   const { width: worldW, height: worldH } = getFloorWorldDimensions(floorConfig);
@@ -59,7 +62,7 @@ export const FloorPlanViewer: React.FC<FloorPlanViewerProps> = ({
     zoomIn,
     zoomOut,
   } = useViewport({
-    initialViewport: { panX: 50, panY: 650, zoom: 0.75 },
+    initialViewport: { panX: 40, panY: 40, zoom: 1 },
     floorConfig,
   });
 
@@ -69,11 +72,25 @@ export const FloorPlanViewer: React.FC<FloorPlanViewerProps> = ({
   const [showGrid, setShowGrid] = useState(true);
   const [colorMode, setColorMode] = useState<MapperColorMode>(isHr ? 'team' : 'status');
 
+  const fitSvgPane = () => {
+    const el = svgPaneRef.current;
+    if (!el) return;
+    fitToFloor(el.clientWidth, el.clientHeight || 500);
+  };
+
   useEffect(() => {
-    if (containerRef.current) {
-      fitToFloor(containerRef.current.clientWidth, containerRef.current.clientHeight || 500);
-    }
-  }, [fitToFloor]);
+    const el = svgPaneRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect;
+      if (width < 10 || height < 10) return;
+      fitToFloor(width, height);
+    });
+    ro.observe(el);
+    fitSvgPane();
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fitToFloor, floorConfig.cols, floorConfig.rows, floorConfig.a]);
 
   const availableCount = floorPlan.desks.filter((d) => d.status === 'available').length;
   const occupiedCount = floorPlan.desks.filter((d) => d.status === 'occupied').length;
@@ -105,7 +122,7 @@ export const FloorPlanViewer: React.FC<FloorPlanViewerProps> = ({
     <div className="flex flex-col lg:flex-row gap-4 h-full">
       <div
         ref={containerRef}
-        className="flex-1 bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-2xl flex flex-col overflow-hidden shadow-sm min-h-[500px]"
+        className="flex-1 bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-2xl flex flex-col overflow-hidden shadow-sm min-h-[min(60vh,560px)] h-full"
       >
         {/* Toolbar */}
         <div className="p-3 bg-slate-50 dark:bg-dark-sidebar border-b border-light-border dark:border-dark-border flex flex-col gap-2.5 z-10">
@@ -180,26 +197,41 @@ export const FloorPlanViewer: React.FC<FloorPlanViewerProps> = ({
                   title="Color desks by team"
                 >
                   <Palette className="w-3.5 h-3.5" />
-                  {colorMode === 'team' ? 'By Team' : 'By Status'}
+                  {colorMode === 'team' ? 'Team markers' : 'By Status'}
                 </button>
               </div>
 
               <div className="flex items-center gap-1 bg-white dark:bg-dark-card border border-light-border dark:border-dark-border rounded-lg p-1">
-                <button type="button" onClick={zoomOut} className="p-1 hover:bg-slate-100 dark:hover:bg-dark-sidebar rounded text-light-text dark:text-dark-text" title="Zoom Out">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const el = svgPaneRef.current;
+                    if (!el) return;
+                    zoomOut(el.clientWidth / 2, el.clientHeight / 2);
+                  }}
+                  className="p-1 hover:bg-slate-100 dark:hover:bg-dark-sidebar rounded text-light-text dark:text-dark-text"
+                  title="Zoom Out"
+                >
                   <ZoomOut className="w-4 h-4" />
                 </button>
                 <span className="text-xs font-mono font-bold px-1.5 text-light-text dark:text-dark-text min-w-[44px] text-center">
                   {Math.round(viewport.zoom * 100)}%
                 </span>
-                <button type="button" onClick={zoomIn} className="p-1 hover:bg-slate-100 dark:hover:bg-dark-sidebar rounded text-light-text dark:text-dark-text" title="Zoom In">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const el = svgPaneRef.current;
+                    if (!el) return;
+                    zoomIn(el.clientWidth / 2, el.clientHeight / 2);
+                  }}
+                  className="p-1 hover:bg-slate-100 dark:hover:bg-dark-sidebar rounded text-light-text dark:text-dark-text"
+                  title="Zoom In"
+                >
                   <ZoomIn className="w-4 h-4" />
                 </button>
                 <button
                   type="button"
-                  onClick={() =>
-                    containerRef.current &&
-                    fitToFloor(containerRef.current.clientWidth, containerRef.current.clientHeight || 500)
-                  }
+                  onClick={fitSvgPane}
                   className="p-1 hover:bg-slate-100 dark:hover:bg-dark-sidebar rounded text-light-text dark:text-dark-text"
                   title="Fit to Floor Boundary"
                 >
@@ -255,8 +287,11 @@ export const FloorPlanViewer: React.FC<FloorPlanViewerProps> = ({
           )}
         </div>
 
-        {/* SVG viewport */}
-        <div className="flex-1 relative overflow-hidden cursor-grab active:cursor-grabbing">
+        {/* SVG viewport — measure this pane for fit, not the outer card */}
+        <div
+          ref={svgPaneRef}
+          className="flex-1 relative overflow-hidden cursor-grab active:cursor-grabbing min-h-[min(60vh,560px)]"
+        >
           <svg
             ref={svgRef}
             className="w-full h-full select-none"
@@ -341,7 +376,7 @@ export const FloorPlanViewer: React.FC<FloorPlanViewerProps> = ({
                       isHighlighted={isSearched}
                       onClick={() => handleDeskClick(desk)}
                       gridSize={floorConfig.a / 4}
-                      colorByTeam={colorMode === 'team'}
+                      showTeamIndicators={colorMode === 'team'}
                       teamColor={teamColor}
                     />
                   </g>
@@ -352,12 +387,14 @@ export const FloorPlanViewer: React.FC<FloorPlanViewerProps> = ({
         </div>
 
         {/* Legend */}
-        <div className="p-3 bg-slate-50 dark:bg-dark-sidebar border-t border-light-border dark:border-dark-border flex flex-wrap items-center justify-between gap-3 text-xs text-light-muted dark:text-dark-muted z-10">
+        <div className="p-3 bg-slate-50 dark:bg-dark-sidebar border-t border-light-border dark:border-dark-border flex flex-col gap-2 text-xs text-light-muted dark:text-dark-muted z-10">
+          <ColorHierarchyLegend compact />
+          <div className="flex flex-wrap items-center justify-between gap-3">
           {colorMode === 'team' ? (
             <div className="flex items-center gap-3 flex-wrap">
               {visibleTeams.slice(0, 6).map((t) => (
                 <span key={t.id} className="flex items-center gap-1.5 font-medium">
-                  <span className="w-3 h-3 rounded" style={{ backgroundColor: t.color }} />
+                  <span className="w-3 h-3 rounded-full ring-2 ring-offset-1" style={{ backgroundColor: t.color }} />
                   {t.name}
                 </span>
               ))}
@@ -382,9 +419,12 @@ export const FloorPlanViewer: React.FC<FloorPlanViewerProps> = ({
             </div>
           )}
           <span className="font-mono font-semibold">
-            {floorPlan.building} • {floorPlan.name} ({worldW}x{worldH})
+            {Math.round(viewport.zoom * 100)}%
             {!showGrid && ' · No grid'}
+            {' · '}
+            {worldW}×{worldH}
           </span>
+          </div>
         </div>
       </div>
 
@@ -393,6 +433,10 @@ export const FloorPlanViewer: React.FC<FloorPlanViewerProps> = ({
         role={user?.role}
         onClose={() => setSelectedDesk(null)}
         onAssignClick={onAssignClick}
+        floorContext={{
+          building: floorPlan.building,
+          floorName: floorPlan.name,
+        }}
       />
     </div>
   );

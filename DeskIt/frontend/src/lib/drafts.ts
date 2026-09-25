@@ -1,12 +1,14 @@
 import { FloorPlan, FloorPlanDraft } from '../types/floorplan';
 import { serializeFloorDocument, parseFloorDocument } from './floorDocument';
 import { INITIAL_FLOOR_PLAN, MOCK_DRAFTS } from '../data/mockData';
+import { getAllFloors } from '../data/floors';
+import { DEFAULT_FLOOR_ID } from '../data/offices';
 
 const DRAFT_PREFIX = 'deskit_draft_';
 const PUBLISHED_PREFIX = 'deskit_published_';
 
 /**
- * Saves a FloorPlan draft to localStorage.
+ * Saves a FloorPlan draft to localStorage (keyed by floor plan id).
  */
 export function saveDraftToStorage(floorPlan: FloorPlan): FloorPlanDraft {
   const serialized = serializeFloorDocument(floorPlan);
@@ -50,20 +52,41 @@ export function savePublishedToStorage(floorPlan: FloorPlan): void {
 
 /**
  * Loads the published FloorPlan from localStorage for Employee & HR views.
+ * Each floor id is independent — never shares mutable state with another floor.
  */
 export function loadPublishedFromStorage(floorId: string): FloorPlan {
   const key = `${PUBLISHED_PREFIX}${floorId}`;
   const data = localStorage.getItem(key);
-  if (!data) return INITIAL_FLOOR_PLAN;
+  if (!data) {
+    if (floorId === DEFAULT_FLOOR_ID || floorId === INITIAL_FLOOR_PLAN.id) {
+      return { ...INITIAL_FLOOR_PLAN, id: floorId };
+    }
+    // Empty starter plan for floors without published data yet
+    return {
+      ...INITIAL_FLOOR_PLAN,
+      id: floorId,
+      name: getAllFloors().find((f) => f.id === floorId)?.label || `Floor ${floorId}`,
+      officeId: getAllFloors().find((f) => f.id === floorId)?.officeId,
+      desks: [],
+      rooms: [],
+      walls: [],
+      zones: [],
+      unusableRegions: [],
+      isPublished: false,
+      version: 0,
+      lastModified: new Date().toISOString(),
+    };
+  }
   const parsed = parseFloorDocument(data);
-  return parsed || INITIAL_FLOOR_PLAN;
+  return parsed || { ...INITIAL_FLOOR_PLAN, id: floorId };
 }
 
 /**
- * Returns all saved drafts from localStorage and mock drafts.
+ * Returns saved drafts for a floor (local + mock seeds for default floor).
  */
-export function getAllSavedDrafts(currentFloorId: string = 'floor-4'): FloorPlanDraft[] {
-  const drafts: FloorPlanDraft[] = [...MOCK_DRAFTS];
+export function getAllSavedDrafts(currentFloorId: string = DEFAULT_FLOOR_ID): FloorPlanDraft[] {
+  const drafts: FloorPlanDraft[] =
+    currentFloorId === DEFAULT_FLOOR_ID ? [...MOCK_DRAFTS] : [];
   const localDraft = loadDraftFromStorage(currentFloorId);
 
   if (localDraft) {
@@ -77,4 +100,20 @@ export function getAllSavedDrafts(currentFloorId: string = 'floor-4'): FloorPlan
   }
 
   return drafts;
+}
+
+/** List floor ids that have a published plan in storage. */
+export function listPublishedFloorIds(): string[] {
+  const ids: string[] = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(PUBLISHED_PREFIX)) {
+        ids.push(key.slice(PUBLISHED_PREFIX.length));
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return ids;
 }

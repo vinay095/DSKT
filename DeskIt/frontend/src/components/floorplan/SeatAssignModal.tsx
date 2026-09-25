@@ -42,7 +42,8 @@ export const SeatAssignModal: React.FC<SeatAssignModalProps> = ({
       emp.name.toLowerCase().includes(search.toLowerCase()) ||
       emp.department.toLowerCase().includes(search.toLowerCase()) ||
       emp.team.toLowerCase().includes(search.toLowerCase()) ||
-      emp.email.toLowerCase().includes(search.toLowerCase())
+      emp.email.toLowerCase().includes(search.toLowerCase()) ||
+      emp.locations.some((loc) => loc.toLowerCase().includes(search.toLowerCase())),
   ).slice(0, 50); // Slice for responsive rendering
 
   return (
@@ -104,7 +105,7 @@ export const SeatAssignModal: React.FC<SeatAssignModalProps> = ({
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by name, email, department, or team..."
+                placeholder="Search by name, email, department, team, or office…"
                 className="w-full bg-slate-50 dark:bg-dark-sidebar border border-light-border dark:border-dark-border rounded-xl pl-9 pr-4 py-2 text-xs text-light-text dark:text-dark-text focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
               />
             </div>

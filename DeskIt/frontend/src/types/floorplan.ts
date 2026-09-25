@@ -100,6 +100,10 @@ export interface FloorPlan {
   id: string;
   name: string; // e.g., "Floor 4 - Tech & Engineering"
   building: string;
+  /** Parent office (Organization → Office → Floor). */
+  officeId?: string;
+  /** If this plan was cloned, the source floor plan id. */
+  clonedFromId?: string;
   desks: DeskElement[];
   rooms: RoomElement[];
   walls: WallElement[];

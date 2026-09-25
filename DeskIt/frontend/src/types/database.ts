@@ -2,7 +2,15 @@
  * Supabase Database Table Definitions & Schema Types for DeskIt
  */
 
-export type EmployeeStatusColor = 'white' | 'green' | 'yellow' | 'red' | 'blue' | 'orange';
+export type EmployeeStatusColor =
+  | 'white'
+  | 'green'
+  | 'yellow'
+  | 'red'
+  | 'blue'
+  | 'orange'
+  | 'purple'
+  | 'teal';
 
 export interface EmployeeStatusMeta {
   color: EmployeeStatusColor;
@@ -16,7 +24,7 @@ export interface EmployeeStatusMeta {
 export const EMPLOYEE_STATUS_CONFIG: Record<EmployeeStatusColor, EmployeeStatusMeta> = {
   white: {
     color: 'white',
-    label: 'Not Present',
+    label: 'OOO / Not Present',
     badgeBg: 'bg-slate-100 dark:bg-slate-800/60',
     badgeText: 'text-slate-700 dark:text-slate-300',
     badgeBorder: 'border-slate-300 dark:border-slate-700',
@@ -24,7 +32,7 @@ export const EMPLOYEE_STATUS_CONFIG: Record<EmployeeStatusColor, EmployeeStatusM
   },
   green: {
     color: 'green',
-    label: 'Present in Office',
+    label: 'Present',
     badgeBg: 'bg-emerald-50 dark:bg-emerald-950/40',
     badgeText: 'text-emerald-700 dark:text-emerald-300',
     badgeBorder: 'border-emerald-300 dark:border-emerald-800',
@@ -40,7 +48,7 @@ export const EMPLOYEE_STATUS_CONFIG: Record<EmployeeStatusColor, EmployeeStatusM
   },
   red: {
     color: 'red',
-    label: 'Absent / On Leave',
+    label: 'On Leave',
     badgeBg: 'bg-rose-50 dark:bg-rose-950/40',
     badgeText: 'text-rose-700 dark:text-rose-300',
     badgeBorder: 'border-rose-300 dark:border-rose-800',
@@ -48,7 +56,7 @@ export const EMPLOYEE_STATUS_CONFIG: Record<EmployeeStatusColor, EmployeeStatusM
   },
   blue: {
     color: 'blue',
-    label: 'Work From Home (Approved)',
+    label: 'WFH (Approved)',
     badgeBg: 'bg-brandBlue-50 dark:bg-brandBlue-950/40',
     badgeText: 'text-brandBlue-700 dark:text-brandBlue-300',
     badgeBorder: 'border-brandBlue-300 dark:border-brandBlue-800',
@@ -56,11 +64,27 @@ export const EMPLOYEE_STATUS_CONFIG: Record<EmployeeStatusColor, EmployeeStatusM
   },
   orange: {
     color: 'orange',
-    label: 'Remote Work',
+    label: 'Remote',
     badgeBg: 'bg-orange-50 dark:bg-orange-950/40',
     badgeText: 'text-orange-700 dark:text-orange-300',
     badgeBorder: 'border-orange-300 dark:border-orange-800',
     dotColor: 'bg-orange-500',
+  },
+  purple: {
+    color: 'purple',
+    label: 'Travelling',
+    badgeBg: 'bg-violet-50 dark:bg-violet-950/40',
+    badgeText: 'text-violet-700 dark:text-violet-300',
+    badgeBorder: 'border-violet-300 dark:border-violet-800',
+    dotColor: 'bg-violet-500',
+  },
+  teal: {
+    color: 'teal',
+    label: 'Travelling between offices',
+    badgeBg: 'bg-teal-50 dark:bg-teal-950/40',
+    badgeText: 'text-teal-700 dark:text-teal-300',
+    badgeBorder: 'border-teal-300 dark:border-teal-800',
+    dotColor: 'bg-teal-500',
   },
 };
 

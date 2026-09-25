@@ -214,13 +214,29 @@ export const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
 
           {/* Zoom / Viewport controls */}
           <div className="flex items-center gap-1 bg-white dark:bg-dark-card border border-light-border dark:border-dark-border rounded-xl p-1 mr-2">
-            <button onClick={zoomOut} className="p-1 hover:bg-slate-100 dark:hover:bg-dark-sidebar rounded text-light-text dark:text-dark-text" title="Zoom Out">
+            <button
+              onClick={() => {
+                const el = containerRef.current;
+                if (!el) return;
+                zoomOut(el.clientWidth / 2, el.clientHeight / 2);
+              }}
+              className="p-1 hover:bg-slate-100 dark:hover:bg-dark-sidebar rounded text-light-text dark:text-dark-text"
+              title="Zoom Out"
+            >
               <ZoomOut className="w-4 h-4" />
             </button>
             <span className="text-xs font-mono font-bold px-1.5 text-light-text dark:text-dark-text min-w-[40px] text-center">
               {Math.round(viewport.zoom * 100)}%
             </span>
-            <button onClick={zoomIn} className="p-1 hover:bg-slate-100 dark:hover:bg-dark-sidebar rounded text-light-text dark:text-dark-text" title="Zoom In">
+            <button
+              onClick={() => {
+                const el = containerRef.current;
+                if (!el) return;
+                zoomIn(el.clientWidth / 2, el.clientHeight / 2);
+              }}
+              className="p-1 hover:bg-slate-100 dark:hover:bg-dark-sidebar rounded text-light-text dark:text-dark-text"
+              title="Zoom In"
+            >
               <ZoomIn className="w-4 h-4" />
             </button>
             <button

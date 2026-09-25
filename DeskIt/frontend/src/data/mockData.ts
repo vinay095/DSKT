@@ -50,7 +50,8 @@ export const DEPARTMENTS: Department[] = [
 export const INITIAL_FLOOR_PLAN: FloorPlan = {
   id: 'floor-4',
   name: 'Floor 4 - Tech & Product Hub',
-  building: 'HQ Tower Alpha',
+  building: 'Noida HQ',
+  officeId: 'office-noida',
   version: 2,
   gridWidth: 20,
   gridHeight: 14,

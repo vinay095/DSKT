@@ -34,7 +34,18 @@ const MANAGERS = [
   'Vikram Joshi (VP of Product)'
 ];
 
-const STATUSES: EmployeeStatusColor[] = ['green', 'green', 'green', 'white', 'yellow', 'red', 'blue', 'orange'];
+const STATUSES: EmployeeStatusColor[] = [
+  'green',
+  'green',
+  'green',
+  'white',
+  'yellow',
+  'red',
+  'blue',
+  'orange',
+  'purple',
+  'teal',
+];
 
 export function generate999Employees(): DbEmployee[] {
   const employees: DbEmployee[] = [];
@@ -51,26 +62,32 @@ export function generate999Employees(): DbEmployee[] {
     const manager = MANAGERS[i % MANAGERS.length];
     const status = STATUSES[i % STATUSES.length];
 
-    // Assign Locations based on requested exact distribution:
-    // 333 Noida 6th, 333 Noida 4th, 350 Hyderabad (Total = 1016 location slots across 999 employees)
+    // Primary locations: Noida 6th / 4th / Hyderabad (+ small cohorts in other offices)
     const locations: string[] = [];
 
-    if (i <= 325) {
+    if (i <= 300) {
       locations.push('Noida 6th Floor');
-    } else if (i <= 650) {
+    } else if (i <= 600) {
       locations.push('Noida 4th Floor');
-    } else {
+    } else if (i <= 900) {
       locations.push('Hyderabad Office');
+    } else if (i <= 930) {
+      locations.push('Kolkata Office');
+    } else if (i <= 965) {
+      locations.push('Dubai Office');
+    } else {
+      locations.push('Romania Office');
     }
 
-    // Assign dual-location privileges to 17 employees (e.g. 1 to 17) to reach exact totals:
-    // 333 Noida 6th (+8), 333 Noida 4th (+8), 350 Hyderabad (+1)
+    // Dual-location travellers (cross-office search demos)
     if (i <= 8) {
       locations.push('Noida 4th Floor');
     } else if (i <= 16) {
       locations.push('Noida 6th Floor');
     } else if (i === 17) {
       locations.push('Hyderabad Office');
+    } else if (i >= 901 && i <= 905) {
+      locations.push('Noida 4th Floor');
     }
 
     const avatar = `https://images.unsplash.com/photo-${1500000000000 + (i % 50) * 10000}?w=150&auto=format&fit=crop&q=80`;

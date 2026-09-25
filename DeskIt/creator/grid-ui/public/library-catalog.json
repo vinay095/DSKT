@@ -1,0 +1,473 @@
+{
+  "categories": [
+    {
+      "category": "workstation",
+      "label": "Workstation",
+      "types": [
+        {
+          "elementType": "computer",
+          "label": "Computer desk",
+          "svg": "computer.svg",
+          "widthCells": 4,
+          "heightCells": 2,
+          "color": "#3b82f6"
+        },
+        {
+          "elementType": "corner-desk",
+          "label": "Corner desk",
+          "svg": "corner-desk.svg",
+          "widthCells": 6,
+          "heightCells": 4,
+          "color": "#2563eb"
+        },
+        {
+          "elementType": "computer-monitor",
+          "label": "Monitor",
+          "svg": "computer-monitor.svg",
+          "widthCells": 2,
+          "heightCells": 2,
+          "color": "#60a5fa"
+        },
+        {
+          "elementType": "drawer",
+          "label": "Drawer unit",
+          "svg": "drawer.svg",
+          "widthCells": 2,
+          "heightCells": 2,
+          "color": "#3b82f6"
+        },
+        {
+          "elementType": "drawerr",
+          "label": "Wide drawer",
+          "svg": "drawerr.svg",
+          "widthCells": 4,
+          "heightCells": 2,
+          "color": "#2563eb"
+        },
+        {
+          "elementType": "noptiera",
+          "label": "Side cabinet",
+          "svg": "noptiera.svg",
+          "widthCells": 2,
+          "heightCells": 2,
+          "color": "#1d4ed8"
+        }
+      ]
+    },
+    {
+      "category": "seating",
+      "label": "Seating",
+      "types": [
+        {
+          "elementType": "chair",
+          "label": "Chair",
+          "svg": "chair.svg",
+          "widthCells": 2,
+          "heightCells": 2,
+          "color": "#6366f1"
+        },
+        {
+          "elementType": "chair-1",
+          "label": "Task chair",
+          "svg": "chair-1.svg",
+          "widthCells": 2,
+          "heightCells": 2,
+          "color": "#6366f1"
+        },
+        {
+          "elementType": "chair-2",
+          "label": "Guest chair",
+          "svg": "chair-2.svg",
+          "widthCells": 2,
+          "heightCells": 2,
+          "color": "#4f46e5"
+        },
+        {
+          "elementType": "chair-3",
+          "label": "Meeting chair",
+          "svg": "chair-3.svg",
+          "widthCells": 2,
+          "heightCells": 2,
+          "color": "#4338ca"
+        },
+        {
+          "elementType": "armchair",
+          "label": "Armchair",
+          "svg": "armchair.svg",
+          "widthCells": 3,
+          "heightCells": 3,
+          "color": "#818cf8"
+        },
+        {
+          "elementType": "lounge-chair",
+          "label": "Lounge chair",
+          "svg": "lounge-chair.svg",
+          "widthCells": 3,
+          "heightCells": 3,
+          "color": "#818cf8"
+        },
+        {
+          "elementType": "bar-stool",
+          "label": "Bar stool",
+          "svg": "bar-stool.svg",
+          "widthCells": 2,
+          "heightCells": 2,
+          "color": "#64748b"
+        },
+        {
+          "elementType": "couch",
+          "label": "Couch",
+          "svg": "couch.svg",
+          "widthCells": 6,
+          "heightCells": 4,
+          "color": "#818cf8"
+        },
+        {
+          "elementType": "loveseat",
+          "label": "Loveseat",
+          "svg": "loveseat.svg",
+          "widthCells": 5,
+          "heightCells": 3,
+          "color": "#818cf8"
+        },
+        {
+          "elementType": "sectional-couch-seat",
+          "label": "Sectional seat",
+          "svg": "sectional-couch-seat.svg",
+          "widthCells": 4,
+          "heightCells": 4,
+          "color": "#6366f1"
+        },
+        {
+          "elementType": "sectional-couch-corner-seat",
+          "label": "Sectional corner",
+          "svg": "sectional-couch-corner-seat.svg",
+          "widthCells": 4,
+          "heightCells": 4,
+          "color": "#4f46e5"
+        }
+      ]
+    },
+    {
+      "category": "meeting_room",
+      "label": "Meeting room",
+      "types": [
+        {
+          "elementType": "table",
+          "label": "Meeting table",
+          "svg": "table.svg",
+          "widthCells": 8,
+          "heightCells": 6,
+          "color": "#a855f7"
+        },
+        {
+          "elementType": "table2",
+          "label": "Conference table",
+          "svg": "table2.svg",
+          "widthCells": 10,
+          "heightCells": 6,
+          "color": "#9333ea"
+        },
+        {
+          "elementType": "round-table",
+          "label": "Round table",
+          "svg": "round-table.svg",
+          "widthCells": 6,
+          "heightCells": 6,
+          "color": "#9333ea"
+        },
+        {
+          "elementType": "dining-table-square",
+          "label": "Square table",
+          "svg": "dining-table-square.svg",
+          "widthCells": 6,
+          "heightCells": 6,
+          "color": "#7e22ce"
+        },
+        {
+          "elementType": "televizor",
+          "label": "Display / TV",
+          "svg": "televizor.svg",
+          "widthCells": 4,
+          "heightCells": 2,
+          "color": "#8b5cf6"
+        },
+        {
+          "elementType": "wardrobe-large",
+          "label": "Storage wardrobe",
+          "svg": "wardrobe-large.svg",
+          "widthCells": 4,
+          "heightCells": 2,
+          "color": "#7c3aed"
+        }
+      ]
+    },
+    {
+      "category": "cafeteria",
+      "label": "Cafeteria / Kitchen",
+      "types": [
+        {
+          "elementType": "dining-table-6",
+          "label": "Dining table",
+          "svg": "dining-table-6.svg",
+          "widthCells": 8,
+          "heightCells": 4,
+          "color": "#f59e0b"
+        },
+        {
+          "elementType": "bar-counter",
+          "label": "Bar counter",
+          "svg": "bar-counter.svg",
+          "widthCells": 10,
+          "heightCells": 4,
+          "color": "#d97706"
+        },
+        {
+          "elementType": "kitchenFridge",
+          "label": "Fridge",
+          "svg": "kitchenFridge.svg",
+          "widthCells": 3,
+          "heightCells": 3,
+          "color": "#f59e0b"
+        },
+        {
+          "elementType": "kitchenSink",
+          "label": "Kitchen sink",
+          "svg": "kitchenSink.svg",
+          "widthCells": 4,
+          "heightCells": 3,
+          "color": "#ea580c"
+        },
+        {
+          "elementType": "kitchen-sink-corner",
+          "label": "Corner sink",
+          "svg": "kitchen-sink-corner.svg",
+          "widthCells": 4,
+          "heightCells": 4,
+          "color": "#ea580c"
+        },
+        {
+          "elementType": "countertop-corner",
+          "label": "Counter corner",
+          "svg": "countertop-corner.svg",
+          "widthCells": 4,
+          "heightCells": 4,
+          "color": "#d97706"
+        },
+        {
+          "elementType": "fume-hood-md",
+          "label": "Fume hood",
+          "svg": "fume-hood-md.svg",
+          "widthCells": 4,
+          "heightCells": 3,
+          "color": "#b45309"
+        }
+      ]
+    },
+    {
+      "category": "restroom",
+      "label": "Restroom",
+      "types": [
+        {
+          "elementType": "toilet",
+          "label": "Toilet",
+          "svg": "toilet.svg",
+          "widthCells": 2,
+          "heightCells": 3,
+          "color": "#06b6d4"
+        },
+        {
+          "elementType": "bidet",
+          "label": "Bidet",
+          "svg": "bidet.svg",
+          "widthCells": 2,
+          "heightCells": 3,
+          "color": "#0891b2"
+        },
+        {
+          "elementType": "bathroomSink",
+          "label": "Bathroom sink",
+          "svg": "bathroomSink.svg",
+          "widthCells": 3,
+          "heightCells": 2,
+          "color": "#06b6d4"
+        },
+        {
+          "elementType": "round-sink",
+          "label": "Round sink",
+          "svg": "round-sink.svg",
+          "widthCells": 2,
+          "heightCells": 2,
+          "color": "#22d3ee"
+        },
+        {
+          "elementType": "double-sink",
+          "label": "Double sink",
+          "svg": "double-sink.svg",
+          "widthCells": 4,
+          "heightCells": 2,
+          "color": "#0e7490"
+        },
+        {
+          "elementType": "corner-sink",
+          "label": "Corner washbasin",
+          "svg": "corner-sink.svg",
+          "widthCells": 3,
+          "heightCells": 3,
+          "color": "#0891b2"
+        },
+        {
+          "elementType": "shower",
+          "label": "Shower",
+          "svg": "shower.svg",
+          "widthCells": 4,
+          "heightCells": 4,
+          "color": "#06b6d4"
+        }
+      ]
+    },
+    {
+      "category": "circulation",
+      "label": "Circulation",
+      "types": [
+        {
+          "elementType": "door",
+          "label": "Door",
+          "svg": "door.svg",
+          "widthCells": 3,
+          "heightCells": 1,
+          "color": "#64748b"
+        },
+        {
+          "elementType": "window",
+          "label": "Window",
+          "svg": "window.svg",
+          "widthCells": 4,
+          "heightCells": 1,
+          "color": "#94a3b8"
+        },
+        {
+          "elementType": "stairs-md-sq",
+          "label": "Stairs (medium)",
+          "svg": "stairs-md-sq.svg",
+          "widthCells": 4,
+          "heightCells": 4,
+          "color": "#64748b"
+        },
+        {
+          "elementType": "stairs-lg-sq",
+          "label": "Stairs (large)",
+          "svg": "stairs-lg-sq.svg",
+          "widthCells": 6,
+          "heightCells": 6,
+          "color": "#475569"
+        },
+        {
+          "elementType": "stairs-small-sq",
+          "label": "Stairs (small)",
+          "svg": "stairs-small-sq.svg",
+          "widthCells": 3,
+          "heightCells": 3,
+          "color": "#64748b"
+        },
+        {
+          "elementType": "stairs-corner",
+          "label": "Corner stairs",
+          "svg": "stairs-corner.svg",
+          "widthCells": 4,
+          "heightCells": 4,
+          "color": "#475569"
+        },
+        {
+          "elementType": "stairs-round",
+          "label": "Round stairs",
+          "svg": "stairs-round.svg",
+          "widthCells": 5,
+          "heightCells": 5,
+          "color": "#64748b"
+        },
+        {
+          "elementType": "stairs-u-shaped",
+          "label": "U-shaped stairs",
+          "svg": "stairs-u-shaped.svg",
+          "widthCells": 6,
+          "heightCells": 6,
+          "color": "#475569"
+        },
+        {
+          "elementType": "stair-cover",
+          "label": "Stair cover",
+          "svg": "stair-cover.svg",
+          "widthCells": 4,
+          "heightCells": 2,
+          "color": "#94a3b8"
+        }
+      ]
+    },
+    {
+      "category": "plant",
+      "label": "Plant",
+      "types": [
+        {
+          "elementType": "plant",
+          "label": "Small plant",
+          "svg": "plant.svg",
+          "widthCells": 2,
+          "heightCells": 2,
+          "color": "#22c55e"
+        },
+        {
+          "elementType": "large-plant",
+          "label": "Large plant",
+          "svg": "large-plant.svg",
+          "widthCells": 4,
+          "heightCells": 4,
+          "color": "#16a34a"
+        },
+        {
+          "elementType": "potted-plant-1",
+          "label": "Potted plant",
+          "svg": "potted-plant-1.svg",
+          "widthCells": 2,
+          "heightCells": 2,
+          "color": "#22c55e"
+        },
+        {
+          "elementType": "potted-plant-2",
+          "label": "Tall plant",
+          "svg": "potted-plant-2.svg",
+          "widthCells": 2,
+          "heightCells": 3,
+          "color": "#15803d"
+        }
+      ]
+    },
+    {
+      "category": "structure",
+      "label": "Structure",
+      "types": [
+        {
+          "elementType": "generic-object",
+          "label": "Generic block",
+          "svg": "generic-object.svg",
+          "widthCells": 2,
+          "heightCells": 2,
+          "color": "#94a3b8"
+        }
+      ]
+    },
+    {
+      "category": "text",
+      "label": "Text",
+      "types": [
+        {
+          "elementType": "text",
+          "label": "Text block",
+          "widthCells": 6,
+          "heightCells": 2,
+          "color": "#64748b"
+        }
+      ]
+    }
+  ]
+}

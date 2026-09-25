@@ -49,6 +49,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           { id: 'dashboard', label: 'Admin Metrics', icon: LayoutDashboard },
           { id: 'editor', label: 'Floor Plan Editor', icon: Edit3 },
           { id: 'drafts', label: 'Drafts & Published', icon: Save },
+          { id: 'change-requests', label: 'HR Change Requests', icon: UserPlus },
           { id: 'floorplan', label: 'View Published Map', icon: Map },
         ];
     }
@@ -58,10 +59,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const accessLabel =
     role === 'employee'
-      ? 'View-Only Seat Lookup'
+      ? 'View-only · cross-office search'
       : role === 'hr'
-        ? 'Seat & Team Allocator'
-        : 'Canvas Layout Architect';
+        ? 'Seat & team allocator (no Creator)'
+        : 'Author · clone · publish floors';
+
+  const accessHint =
+    role === 'employee'
+      ? 'Find anyone across offices. No edit or publish tools.'
+      : role === 'hr'
+        ? 'Assign seats on published maps. Layout changes go to Admin.'
+        : 'Create, clone, and publish independent floor plans per office.';
 
   return (
     <aside
@@ -122,7 +130,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {accessLabel}
             </p>
             <p className="text-[10px] text-light-muted dark:text-dark-muted mt-1 leading-tight">
-              Use the top role switcher to toggle access levels instantly.
+              {accessHint}
             </p>
           </div>
         )}
