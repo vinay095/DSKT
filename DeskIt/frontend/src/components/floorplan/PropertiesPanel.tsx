@@ -4,6 +4,7 @@ import { UserRole } from '../../types/auth';
 import { EMPLOYEE_STATUS_CONFIG } from '../../types/database';
 import type { MapElementSelection } from './PublishedFloorMap';
 import { getCategoryStyle } from '../../lib/categoryStyles';
+import { usePermissions } from '../../hooks/usePermissions';
 import {
   Building,
   Monitor,
@@ -22,6 +23,7 @@ interface PropertiesPanelProps {
   selectedUnusable?: UnusableRegion | null;
   /** Non-desk published map element (furniture, text, etc.) */
   selectedMapElement?: MapElementSelection | null;
+  /** @deprecated Prefer permissions via usePermissions; kept for call-site compatibility */
   role?: UserRole;
   onClose: () => void;
   onRotate?: () => void;
@@ -37,13 +39,13 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   selectedZone,
   selectedUnusable,
   selectedMapElement,
-  role = 'employee',
   onClose,
   onRotate,
   onDelete,
   onAssignClick,
   floorContext,
 }) => {
+  const { canAllocateSeat, canEditFloorPlan } = usePermissions();
   if (
     !selectedDesk &&
     !selectedRoom &&
@@ -208,32 +210,39 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             </div>
           </div>
 
-          {/* Actions */}
+          {/* Actions — gated by centralized permissions, not role string checks */}
           <div className="pt-3 border-t border-light-border dark:border-dark-border space-y-2">
-            {(role === 'hr' || role === 'admin') && (
+            {canAllocateSeat && onAssignClick && (
               <button
-                onClick={() => onAssignClick && onAssignClick(selectedDesk)}
-                className="w-full py-2.5 px-4 rounded-xl bg-brandBlue-600 dark:bg-brandPurple-600 hover:bg-brandBlue-700 dark:hover:bg-brandPurple-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition shadow-md"
+                type="button"
+                onClick={() => onAssignClick(selectedDesk)}
+                className="w-full py-2.5 px-4 rounded-xl bg-accent hover:bg-accent-hover text-accent-foreground font-bold text-xs flex items-center justify-center gap-2 transition shadow-md"
               >
                 <UserCheck className="w-4 h-4" />
                 {selectedDesk.assignedUserName ? 'Reassign Employee' : 'Assign Employee'}
               </button>
             )}
 
-            {role === 'admin' && (
+            {canEditFloorPlan && (onRotate || onDelete) && (
               <div className="flex gap-2">
-                <button
-                  onClick={onRotate}
-                  className="flex-1 py-2 px-3 rounded-xl border border-light-border dark:border-dark-border bg-slate-100 dark:bg-dark-sidebar hover:bg-slate-200 text-xs font-bold flex items-center justify-center gap-1.5"
-                >
-                  <RotateCw className="w-3.5 h-3.5" /> Rotate
-                </button>
-                <button
-                  onClick={onDelete}
-                  className="py-2 px-3 rounded-xl border border-rose-200 dark:border-rose-900/40 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center justify-center gap-1.5"
-                >
-                  <Trash2 className="w-3.5 h-3.5" /> Delete
-                </button>
+                {onRotate && (
+                  <button
+                    type="button"
+                    onClick={onRotate}
+                    className="flex-1 py-2 px-3 rounded-xl border border-light-border dark:border-dark-border bg-slate-100 dark:bg-dark-sidebar hover:bg-slate-200 text-xs font-bold flex items-center justify-center gap-1.5"
+                  >
+                    <RotateCw className="w-3.5 h-3.5" /> Rotate
+                  </button>
+                )}
+                {onDelete && (
+                  <button
+                    type="button"
+                    onClick={onDelete}
+                    className="py-2 px-3 rounded-xl border border-rose-200 dark:border-rose-900/40 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center justify-center gap-1.5"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Delete
+                  </button>
+                )}
               </div>
             )}
 
@@ -329,7 +338,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               <span className="font-bold">Size:</span> {selectedMapElement.widthCells}×
               {selectedMapElement.heightCells} cells
             </p>
-            {(role === 'hr' || role === 'admin') && (
+            {canAllocateSeat && (
               <p className="text-[11px] text-amber-700 dark:text-amber-300 pt-1 border-t border-light-border dark:border-dark-border mt-2">
                 Seat assignment works on workstations/desks. Click a desk on the map, then use
                 Assign Employee in the inspector.

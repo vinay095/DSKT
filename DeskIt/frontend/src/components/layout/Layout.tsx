@@ -2,13 +2,14 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { AppShell } from './AppShell';
 import { Navbar } from './Navbar';
 import { Sidebar } from './Sidebar';
-import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import { FloorPlan, DeskElement } from '../../types/floorplan';
 import { EmployeeDashboard } from '../dashboards/EmployeeDashboard';
 import { HrDashboard } from '../dashboards/HrDashboard';
 import { AdminDashboard } from '../dashboards/AdminDashboard';
 import { FloorPlanViewer } from '../floorplan/FloorPlanViewer';
 import { SsoLoginModal } from '../auth/SsoLoginModal';
+import { AccessDenied } from '../common/AccessDenied';
 import { loadPublishedFromStorage, savePublishedToStorage } from '../../lib/drafts';
 import { DEFAULT_FLOOR_ID, DEFAULT_OFFICE_ID, getFloorById, getOfficeById } from '../../data/offices';
 import { getAllFloors } from '../../data/floors';
@@ -19,6 +20,7 @@ import {
   savePublishedFloorDocument,
 } from '../../lib/publishedFloor';
 import { PublishedFloorMap } from '../floorplan/PublishedFloorMap';
+import { DEFAULT_TAB } from '../../lib/permissions';
 
 const SIDEBAR_COLLAPSED_KEY = 'deskit_sidebar_collapsed';
 
@@ -34,11 +36,22 @@ const PAGE_LABELS: Record<string, string> = {
 };
 
 export const Layout: React.FC = () => {
-  const { user } = useAuth();
+  const {
+    role,
+    canAccessTab,
+    canAllocateSeat,
+    canPublishFloorPlan,
+    canCloneFloorPlan,
+    canAccessHrTools,
+    canAccessAdminTools,
+    canEditFloorPlan,
+    guard,
+  } = usePermissions();
+
   const [floors, setFloors] = useState(() => getAllFloors());
   const [activeOfficeId, setActiveOfficeId] = useState<string>(DEFAULT_OFFICE_ID);
   const [activeFloorId, setActiveFloorId] = useState<string>(DEFAULT_FLOOR_ID);
-  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [activeTab, setActiveTab] = useState<string>(DEFAULT_TAB);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     try {
@@ -55,7 +68,6 @@ export const Layout: React.FC = () => {
   );
   const [publishedShowGrid, setPublishedShowGrid] = useState(true);
 
-  const role = user?.role || 'employee';
   const activeFloor = useMemo(
     () => getFloorById(activeFloorId, floors),
     [activeFloorId, floors],
@@ -65,8 +77,15 @@ export const Layout: React.FC = () => {
     [activeOfficeId],
   );
 
+  /** Reset / clamp tab when role changes or tab is not allowed. */
   useEffect(() => {
-    setActiveTab('dashboard');
+    if (!canAccessTab(activeTab)) {
+      setActiveTab(DEFAULT_TAB);
+    }
+  }, [role, activeTab, canAccessTab]);
+
+  useEffect(() => {
+    setActiveTab(DEFAULT_TAB);
   }, [role]);
 
   const applyFloorContext = (floorId: string, officeId?: string) => {
@@ -97,6 +116,7 @@ export const Layout: React.FC = () => {
   }, []);
 
   const handleCreatorPublished = (doc: FloorDocumentV2) => {
+    if (!guard('canPublishFloorPlan', 'publish creator floor document')) return;
     savePublishedFloorDocument(doc, activeFloorId);
     setPublishedDoc(doc);
     setCurrentFloorPlan((prev) => {
@@ -119,6 +139,11 @@ export const Layout: React.FC = () => {
     }
   };
 
+  const handleTabChange = (tab: string) => {
+    if (!canAccessTab(tab)) return;
+    setActiveTab(tab);
+  };
+
   const handleOfficeChange = (officeId: string) => {
     setActiveOfficeId(officeId);
     const officeFloors = floors.filter((f) => f.officeId === officeId);
@@ -131,6 +156,7 @@ export const Layout: React.FC = () => {
   };
 
   const handleUpdateDesk = (updatedDesk: DeskElement) => {
+    if (!guard('canAllocateSeat', 'update seat assignment')) return;
     setCurrentFloorPlan((prev) => {
       const exists = prev.desks.some((d) => d.id === updatedDesk.id);
       const updated: FloorPlan = {
@@ -146,6 +172,12 @@ export const Layout: React.FC = () => {
   };
 
   const handlePublishFloorPlan = (fp: FloorPlan) => {
+    // AdminDashboard uses this for publish and clone-apply.
+    if (!canPublishFloorPlan && !canCloneFloorPlan) {
+      guard('canPublishFloorPlan', 'publish or apply floor plan');
+      return;
+    }
+
     setCurrentFloorPlan(fp);
     savePublishedToStorage(fp);
     if (fp.id !== activeFloorId) {
@@ -158,11 +190,99 @@ export const Layout: React.FC = () => {
   };
 
   const mainClassName =
-    role === 'admin' && activeTab === 'editor'
+    canEditFloorPlan && activeTab === 'editor'
       ? 'min-h-0 overflow-hidden p-3 sm:p-4 flex flex-col'
       : activeTab === 'floorplan'
         ? 'min-h-0 overflow-y-auto p-4 sm:p-6 flex flex-col'
         : undefined;
+
+  const renderContent = () => {
+    if (!canAccessTab(activeTab)) {
+      return (
+        <AccessDenied description="This section is not available for your current role. Switch role from the header if you are demoing." />
+      );
+    }
+
+    if (activeTab === 'floorplan') {
+      if (canAllocateSeat) {
+        return (
+          <HrDashboard
+            floorPlan={currentFloorPlan}
+            searchQuery={searchQuery}
+            onUpdateDesk={handleUpdateDesk}
+            activeTab="floorplan"
+            publishedDocument={publishedDoc}
+          />
+        );
+      }
+      if (publishedDoc) {
+        return (
+          <div className="flex-1 min-h-[min(70vh,640px)] flex flex-col">
+            <PublishedFloorMap
+              document={publishedDoc}
+              desks={currentFloorPlan.desks}
+              showGrid={publishedShowGrid}
+              onToggleGrid={() => setPublishedShowGrid((v) => !v)}
+              searchQuery={searchQuery}
+              compactChrome
+              className="flex-1 min-h-[min(60vh,560px)]"
+            />
+          </div>
+        );
+      }
+      return (
+        <div className="flex-1 min-h-0 flex flex-col gap-3">
+          <p className="text-xs text-content-secondary shrink-0">
+            No published SVG map yet — showing desk layout. Admin can publish from Creator.
+          </p>
+          <div className="flex-1 min-h-[min(60vh,560px)]">
+            <FloorPlanViewer floorPlan={currentFloorPlan} searchQuery={searchQuery} />
+          </div>
+        </div>
+      );
+    }
+
+    if (canAccessHrTools) {
+      return (
+        <HrDashboard
+          floorPlan={currentFloorPlan}
+          searchQuery={searchQuery}
+          onUpdateDesk={handleUpdateDesk}
+          activeTab={activeTab}
+          publishedDocument={publishedDoc}
+        />
+      );
+    }
+
+    if (canAccessAdminTools) {
+      return (
+        <AdminDashboard
+          floorPlan={currentFloorPlan}
+          onPublish={handlePublishFloorPlan}
+          onCreatorPublished={handleCreatorPublished}
+          activeTab={activeTab}
+          activeFloorId={activeFloorId}
+          activeOfficeId={activeOfficeId}
+          floors={floors}
+          onFloorChange={handleFloorChange}
+          onFloorsChanged={handleFloorsChanged}
+        />
+      );
+    }
+
+    return (
+      <EmployeeDashboard
+        floorPlan={currentFloorPlan}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        activeTab={activeTab}
+        activeFloor={activeFloor}
+        activeOffice={activeOffice}
+        floors={floors}
+        publishedDocument={publishedDoc}
+      />
+    );
+  };
 
   return (
     <>
@@ -171,7 +291,7 @@ export const Layout: React.FC = () => {
         sidebar={
           <Sidebar
             activeTab={activeTab}
-            onTabChange={setActiveTab}
+            onTabChange={handleTabChange}
             collapsed={sidebarCollapsed}
             onCollapsedChange={handleSidebarCollapsedChange}
           />
@@ -189,69 +309,7 @@ export const Layout: React.FC = () => {
           />
         }
       >
-        {activeTab === 'floorplan' ? (
-          role === 'hr' ? (
-            <HrDashboard
-              floorPlan={currentFloorPlan}
-              searchQuery={searchQuery}
-              onUpdateDesk={handleUpdateDesk}
-              activeTab="floorplan"
-              publishedDocument={publishedDoc}
-            />
-          ) : publishedDoc ? (
-            <div className="flex-1 min-h-[min(70vh,640px)] flex flex-col">
-              <PublishedFloorMap
-                document={publishedDoc}
-                desks={currentFloorPlan.desks}
-                showGrid={publishedShowGrid}
-                onToggleGrid={() => setPublishedShowGrid((v) => !v)}
-                searchQuery={searchQuery}
-                compactChrome
-                className="flex-1 min-h-[min(60vh,560px)]"
-              />
-            </div>
-          ) : (
-            <div className="flex-1 min-h-0 flex flex-col gap-3">
-              <p className="text-xs text-content-secondary shrink-0">
-                No published SVG map yet — showing desk layout. Admin can publish from Creator.
-              </p>
-              <div className="flex-1 min-h-[min(60vh,560px)]">
-                <FloorPlanViewer floorPlan={currentFloorPlan} searchQuery={searchQuery} />
-              </div>
-            </div>
-          )
-        ) : role === 'employee' ? (
-          <EmployeeDashboard
-            floorPlan={currentFloorPlan}
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            activeTab={activeTab}
-            activeFloor={activeFloor}
-            activeOffice={activeOffice}
-            floors={floors}
-            publishedDocument={publishedDoc}
-          />
-        ) : role === 'hr' ? (
-          <HrDashboard
-            floorPlan={currentFloorPlan}
-            searchQuery={searchQuery}
-            onUpdateDesk={handleUpdateDesk}
-            activeTab={activeTab}
-            publishedDocument={publishedDoc}
-          />
-        ) : (
-          <AdminDashboard
-            floorPlan={currentFloorPlan}
-            onPublish={handlePublishFloorPlan}
-            onCreatorPublished={handleCreatorPublished}
-            activeTab={activeTab}
-            activeFloorId={activeFloorId}
-            activeOfficeId={activeOfficeId}
-            floors={floors}
-            onFloorChange={handleFloorChange}
-            onFloorsChanged={handleFloorsChanged}
-          />
-        )}
+        {renderContent()}
       </AppShell>
 
       <SsoLoginModal />

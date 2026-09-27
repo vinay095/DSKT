@@ -24,6 +24,8 @@ import {
   Layers,
 } from 'lucide-react';
 import { PageHeader } from '../common/PageHeader';
+import { AccessDenied } from '../common/AccessDenied';
+import { usePermissions } from '../../hooks/usePermissions';
 
 interface AdminDashboardProps {
   floorPlan: FloorPlan;
@@ -48,6 +50,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onFloorChange,
   onFloorsChanged,
 }) => {
+  const {
+    canAccessAdminTools,
+    canCloneFloorPlan,
+    canPublishFloorPlan,
+    canManageFloorChangeRequests,
+    canEditFloorPlan,
+    guard,
+  } = usePermissions();
+
   const [drafts] = useState<FloorPlanDraft[]>(() => getAllSavedDrafts(floorPlan.id));
   const [changeRequests, setChangeRequests] = useState<FloorChangeRequest[]>(() =>
     listFloorChangeRequests(),
@@ -66,6 +77,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   }, [floors]);
 
   const handleClone = () => {
+    if (!guard('canCloneFloorPlan', 'clone floor plan')) return;
     const source = loadPublishedFromStorage(activeFloorId);
     const newFloorId = makeCloneFloorId(activeFloorId);
     const name =
@@ -191,7 +203,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <button
             type="button"
             onClick={handleClone}
-            className="w-full py-2.5 rounded-xl bg-brandBlue-600 hover:bg-brandBlue-700 dark:bg-brandPurple-600 dark:hover:bg-brandPurple-700 text-white text-xs font-bold flex items-center justify-center gap-2"
+            disabled={!canCloneFloorPlan}
+            className="w-full py-2.5 rounded-xl bg-accent hover:bg-accent-hover text-accent-foreground text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-50"
           >
             <Copy className="w-3.5 h-3.5" /> Clone & open for editing
           </button>
@@ -204,6 +217,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       </div>
     </div>
   );
+
+  if (!canAccessAdminTools) {
+    return (
+      <AccessDenied description="Admin tools require the Admin role. Switch demo role from the header to continue." />
+    );
+  }
+
+  const updateRequestStatus = (
+    id: string,
+    status: FloorChangeRequest['status'],
+  ) => {
+    if (!guard('canManageFloorChangeRequests', `set change request ${status}`)) return;
+    updateFloorChangeRequestStatus(id, status);
+    refreshRequests();
+  };
 
   if (activeTab === 'change-requests') {
     return (
@@ -249,35 +277,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <p className="text-[10px] text-light-muted dark:text-dark-muted">
                   From: {req.requestedBy}
                 </p>
-                {req.status === 'pending' && (
+                {req.status === 'pending' && canManageFloorChangeRequests && (
                   <div className="flex gap-2 pt-2">
                     <button
                       type="button"
-                      className="px-3 py-1 rounded-lg text-xs font-bold bg-brandBlue-600 dark:bg-brandPurple-600 text-white"
-                      onClick={() => {
-                        updateFloorChangeRequestStatus(req.id, 'acknowledged');
-                        refreshRequests();
-                      }}
+                      className="px-3 py-1 rounded-lg text-xs font-bold bg-accent text-accent-foreground"
+                      onClick={() => updateRequestStatus(req.id, 'acknowledged')}
                     >
                       Acknowledge
                     </button>
                     <button
                       type="button"
                       className="px-3 py-1 rounded-lg text-xs font-bold border border-emerald-300 text-emerald-700"
-                      onClick={() => {
-                        updateFloorChangeRequestStatus(req.id, 'done');
-                        refreshRequests();
-                      }}
+                      onClick={() => updateRequestStatus(req.id, 'done')}
                     >
                       Mark done
                     </button>
                     <button
                       type="button"
                       className="px-3 py-1 rounded-lg text-xs font-bold border border-rose-200 text-rose-600"
-                      onClick={() => {
-                        updateFloorChangeRequestStatus(req.id, 'rejected');
-                        refreshRequests();
-                      }}
+                      onClick={() => updateRequestStatus(req.id, 'rejected')}
                     >
                       Reject
                     </button>
@@ -325,8 +344,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
               <div className="pt-3 border-t border-light-border dark:border-dark-border flex gap-2">
                 <button
-                  onClick={() => onPublish(d.data)}
-                  className="flex-1 py-2 px-3 rounded-xl bg-brandPurple-600 hover:bg-brandPurple-700 text-white font-bold text-xs transition flex items-center justify-center gap-1.5"
+                  type="button"
+                  disabled={!canPublishFloorPlan}
+                  onClick={() => {
+                    if (!guard('canPublishFloorPlan', 'publish draft layout')) return;
+                    onPublish(d.data);
+                  }}
+                  className="flex-1 py-2 px-3 rounded-xl bg-accent hover:bg-accent-hover text-accent-foreground font-bold text-xs transition flex items-center justify-center gap-1.5 disabled:opacity-50"
                 >
                   <Upload className="w-3.5 h-3.5" /> Publish Live Layout
                 </button>
@@ -345,6 +369,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   }
 
   if (activeTab === 'editor') {
+    if (!canEditFloorPlan) {
+      return (
+        <AccessDenied description="Floor plan editing requires Admin layout-authoring permission." />
+      );
+    }
     const officeName = getOfficeById(activeOfficeId)?.name;
     const floorLabel =
       floors.find((f) => f.id === activeFloorId)?.shortLabel || floorPlan.name;

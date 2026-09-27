@@ -1,17 +1,8 @@
 import React from 'react';
-import { useAuth } from '../../context/AuthContext';
 import { cn } from '../../lib/cn';
-import {
-  LayoutDashboard,
-  Map,
-  Users,
-  UserCheck,
-  Edit3,
-  Save,
-  UserPlus,
-  ChevronLeft,
-  ChevronRight,
-} from 'lucide-react';
+import { usePermissions } from '../../hooks/usePermissions';
+import { getNavItemsForRole, getRoleAccessCopy } from '../../lib/navigation';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface SidebarProps {
   activeTab: string;
@@ -26,46 +17,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   collapsed,
   onCollapsedChange,
 }) => {
-  const { user } = useAuth();
-  const role = user?.role || 'employee';
+  const { role, canAccessTab } = usePermissions();
+  const navItems = getNavItemsForRole(role);
+  const { roleLabel, hint } = getRoleAccessCopy(role);
 
-  const getNavItems = () => {
-    switch (role) {
-      case 'employee':
-        return [
-          { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
-          { id: 'floorplan', label: 'Floor Maps', icon: Map },
-          { id: 'teammates', label: 'Find People', icon: Users },
-        ];
-      case 'hr':
-        return [
-          { id: 'dashboard', label: 'HR Overview', icon: LayoutDashboard },
-          { id: 'assignments', label: 'Seat Allocation', icon: UserCheck },
-          { id: 'floorplan', label: 'Floor Maps', icon: Map },
-          { id: 'requests', label: 'Seat Requests', icon: UserPlus },
-        ];
-      case 'admin':
-        return [
-          { id: 'dashboard', label: 'Admin Overview', icon: LayoutDashboard },
-          { id: 'editor', label: 'Floor Plan Editor', icon: Edit3 },
-          { id: 'drafts', label: 'Drafts & Versions', icon: Save },
-          { id: 'change-requests', label: 'Change Requests', icon: UserPlus },
-          { id: 'floorplan', label: 'Published Maps', icon: Map },
-        ];
-    }
+  const handleTabChange = (tab: string) => {
+    if (!canAccessTab(tab)) return;
+    onTabChange(tab);
   };
-
-  const navItems = getNavItems();
-
-  const roleLabel =
-    role === 'employee' ? 'Employee' : role === 'hr' ? 'HR' : 'Admin';
-
-  const accessHint =
-    role === 'employee'
-      ? 'View workplace maps and locate colleagues.'
-      : role === 'hr'
-        ? 'Allocate seats and manage seating requests.'
-        : 'Create, clone, and publish floor plans.';
 
   return (
     <aside
@@ -112,7 +71,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => onTabChange(item.id)}
+                  onClick={() => handleTabChange(item.id)}
                   title={collapsed ? item.label : undefined}
                   data-active={isActive}
                   className={cn(
@@ -134,7 +93,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               Access
             </p>
             <p className="text-xs font-semibold text-content-primary mt-0.5">{roleLabel}</p>
-            <p className="text-[10px] text-content-secondary mt-1 leading-snug">{accessHint}</p>
+            <p className="text-[10px] text-content-secondary mt-1 leading-snug">{hint}</p>
           </div>
         )}
       </div>

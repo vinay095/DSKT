@@ -11,7 +11,9 @@ import { saveSeatAssignment } from '../../lib/supabaseClient';
 import { saveFloorChangeRequest } from '../../lib/floorChangeRequests';
 import { StatCard } from '../common/StatCard';
 import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import { User } from '../../types/auth';
+import { AccessDenied } from '../common/AccessDenied';
 import {
   UserCheck,
   Building,
@@ -38,6 +40,13 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
   publishedDocument = null,
 }) => {
   const { user } = useAuth();
+  const {
+    canAllocateSeat,
+    canApproveSeatRequest,
+    canSubmitFloorChangeRequest,
+    canAccessHrTools,
+    guard,
+  } = usePermissions();
   const [requests, setRequests] = useState<SeatAssignmentRequest[]>(MOCK_REQUESTS);
   const [selectedDeskForAssign, setSelectedDeskForAssign] = useState<DeskElement | null>(null);
   const [inspectedDesk, setInspectedDesk] = useState<DeskElement | null>(null);
@@ -61,18 +70,21 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
   const pendingCount = requests.filter((r) => r.status === 'pending').length;
 
   const handleApproveRequest = (reqId: string) => {
+    if (!guard('canApproveSeatRequest', 'approve seat request')) return;
     setRequests((prev) =>
       prev.map((r) => (r.id === reqId ? { ...r, status: 'approved' } : r))
     );
   };
 
   const handleRejectRequest = (reqId: string) => {
+    if (!guard('canApproveSeatRequest', 'reject seat request')) return;
     setRequests((prev) =>
       prev.map((r) => (r.id === reqId ? { ...r, status: 'rejected' } : r))
     );
   };
 
   const handleAssignUserToDesk = (deskId: string, targetUser: User, details?: SeatAssignmentDetails) => {
+    if (!guard('canAllocateSeat', 'assign employee to desk')) return;
     const targetDesk = floorPlan.desks.find((d) => d.id === deskId) || inspectedDesk;
     if (targetDesk && targetDesk.id === deskId) {
       const updated: DeskElement = {
@@ -107,6 +119,7 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
   };
 
   const handleUnassignDesk = (deskId: string) => {
+    if (!guard('canAllocateSeat', 'unassign desk')) return;
     const targetDesk = floorPlan.desks.find((d) => d.id === deskId);
     if (targetDesk) {
       const updated: DeskElement = {
@@ -205,21 +218,25 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
               <span className="text-xs font-bold capitalize text-light-text dark:text-dark-text">
                 Status: {req.status}
               </span>
-              {req.status === 'pending' ? (
+              {req.status === 'pending' && canApproveSeatRequest ? (
                 <div className="flex gap-2">
                   <button
+                    type="button"
                     onClick={() => handleRejectRequest(req.id)}
                     className="px-3 py-1 rounded-lg border border-rose-200 bg-rose-50 text-rose-600 font-bold text-xs hover:bg-rose-100 transition"
                   >
                     Reject
                   </button>
                   <button
+                    type="button"
                     onClick={() => handleApproveRequest(req.id)}
-                    className="px-3.5 py-1 rounded-lg bg-brandBlue-600 hover:bg-brandBlue-700 dark:bg-brandPurple-600 dark:hover:bg-brandPurple-700 text-white font-bold text-xs transition shadow"
+                    className="px-3.5 py-1 rounded-lg bg-accent hover:bg-accent-hover text-accent-foreground font-bold text-xs transition shadow"
                   >
                     Approve Seat
                   </button>
                 </div>
+              ) : req.status === 'pending' ? (
+                <span className="text-xs text-content-secondary">View only</span>
               ) : (
                 <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                   Processed
@@ -281,7 +298,9 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
             selectedMapElement={inspectedMapElement}
             role="hr"
             onClose={clearInspector}
-            onAssignClick={(desk) => setSelectedDeskForAssign(desk)}
+            onAssignClick={
+              canAllocateSeat ? (desk) => setSelectedDeskForAssign(desk) : undefined
+            }
             floorContext={{
               building: floorPlan.building,
               floorName: floorPlan.name,
@@ -293,8 +312,10 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
           <FloorPlanViewer
             floorPlan={floorPlan}
             searchQuery={searchQuery}
-            onAssignClick={(desk) => setSelectedDeskForAssign(desk)}
-            hrMode
+            onAssignClick={
+              canAllocateSeat ? (desk) => setSelectedDeskForAssign(desk) : undefined
+            }
+            hrMode={canAllocateSeat}
           />
         </div>
       )}
@@ -333,7 +354,9 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
             selectedMapElement={inspectedMapElement}
             role="hr"
             onClose={clearInspector}
-            onAssignClick={(desk) => setSelectedDeskForAssign(desk)}
+            onAssignClick={
+              canAllocateSeat ? (desk) => setSelectedDeskForAssign(desk) : undefined
+            }
             floorContext={{
               building: floorPlan.building,
               floorName: floorPlan.name,
@@ -345,8 +368,10 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
           <FloorPlanViewer
             floorPlan={floorPlan}
             searchQuery={searchQuery}
-            onAssignClick={(desk) => setSelectedDeskForAssign(desk)}
-            hrMode
+            onAssignClick={
+              canAllocateSeat ? (desk) => setSelectedDeskForAssign(desk) : undefined
+            }
+            hrMode={canAllocateSeat}
           />
         </div>
       )}
@@ -407,6 +432,7 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
           type="button"
           className="px-4 py-2 rounded-xl text-xs font-bold bg-brandBlue-600 hover:bg-brandBlue-700 dark:bg-brandPurple-600 dark:hover:bg-brandPurple-700 text-white"
           onClick={() => {
+            if (!guard('canSubmitFloorChangeRequest', 'submit floor change request')) return;
             if (!changeElement.trim() || !changeDetails.trim()) {
               setChangeMsg('Please fill element and details.');
               return;
@@ -423,6 +449,7 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
             setChangeMsg('Request submitted to Admin.');
             window.setTimeout(() => setChangeMsg(null), 3000);
           }}
+          disabled={!canSubmitFloorChangeRequest}
         >
           Submit request
         </button>
@@ -433,14 +460,20 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
     </div>
   );
 
-  const seatModal = (
+  const seatModal = canAllocateSeat ? (
     <SeatAssignModal
       desk={selectedDeskForAssign}
       onClose={() => setSelectedDeskForAssign(null)}
       onAssign={handleAssignUserToDesk}
       onUnassign={handleUnassignDesk}
     />
-  );
+  ) : null;
+
+  if (!canAccessHrTools) {
+    return (
+      <AccessDenied description="HR tools require the HR role. Switch demo role from the header to continue." />
+    );
+  }
 
   if (activeTab === 'floorplan') {
     return (
@@ -459,7 +492,7 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
           description="Click a seat or floor element for details. Assign from the inspector. Request layout changes in the section below."
         />
         {allocationMapSection}
-        {changeRequestSection}
+        {canSubmitFloorChangeRequest && changeRequestSection}
         {seatModal}
       </div>
     );

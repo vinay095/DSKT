@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useMemo, useState } from 'react';
 import { FloorPlan, DeskElement } from '../../types/floorplan';
 import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import { useViewport } from '../../hooks/useViewport';
 import { getSvgTransformMatrix } from '../../geometry/coordinates';
 import { DEFAULT_FLOOR_CONFIG, getFloorWorldDimensions } from '../../geometry/grid';
@@ -42,7 +43,8 @@ export const FloorPlanViewer: React.FC<FloorPlanViewerProps> = ({
   hrMode = false,
 }) => {
   const { user } = useAuth();
-  const isHr = hrMode || user?.role === 'hr';
+  const { canAllocateSeat } = usePermissions();
+  const isHr = hrMode || canAllocateSeat;
   const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   /** SVG drawing pane only — fit/zoom must measure this, not the outer card. */
@@ -432,7 +434,7 @@ export const FloorPlanViewer: React.FC<FloorPlanViewerProps> = ({
         selectedDesk={selectedDesk}
         role={user?.role}
         onClose={() => setSelectedDesk(null)}
-        onAssignClick={onAssignClick}
+        onAssignClick={canAllocateSeat ? onAssignClick : undefined}
         floorContext={{
           building: floorPlan.building,
           floorName: floorPlan.name,
