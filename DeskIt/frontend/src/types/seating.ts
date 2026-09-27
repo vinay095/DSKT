@@ -13,6 +13,9 @@ export interface SeatAssignmentRequest {
   userAvatar: string;
   department: string;
   requestedDeskId?: string;
+  /** Preferred office/floor for allocation (multi-office aware). */
+  floorId?: string;
+  officeId?: string;
   status: 'pending' | 'approved' | 'rejected';
   requestDate: string;
   notes?: string;

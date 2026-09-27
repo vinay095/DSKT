@@ -105,5 +105,114 @@ export function generate999Employees(): DbEmployee[] {
     });
   }
 
+  applyShowcaseEmployees(employees);
   return employees;
+}
+
+/**
+ * Deterministic showcase cohort (Noida 4th + multi-office / multi-seat demos).
+ * Replaces fixed EMP slots so floor seed + directory stay aligned.
+ */
+function applyShowcaseEmployees(employees: DbEmployee[]): void {
+  const byId = new Map(employees.map((e) => [e.emp_id, e]));
+
+  const patch = (empId: string, data: Partial<DbEmployee>) => {
+    const target = byId.get(empId);
+    if (!target) return;
+    Object.assign(target, data);
+  };
+
+  // EMP-1301.. = Noida 4th cohort (generator i = 301+)
+  patch('EMP-1301', {
+    name: 'Priya Sharma',
+    email: 'priya.sharma@deskit.io',
+    department: 'Marketing',
+    team: 'Growth & SEO',
+    manager: 'Elena Rostova (Lead Product Manager)',
+    status: 'green',
+    locations: ['Noida 4th Floor', 'Noida 6th Floor', 'Hyderabad Office'],
+    avatar:
+      'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&auto=format&fit=crop&q=80',
+  });
+  patch('EMP-1302', {
+    name: 'David Chen',
+    email: 'david.chen@deskit.io',
+    department: 'Engineering',
+    team: 'Backend Services',
+    manager: 'Aarav Sharma (Engineering Director)',
+    status: 'green',
+    locations: ['Noida 4th Floor'],
+  });
+  patch('EMP-1303', {
+    name: 'Elena Rostova',
+    email: 'elena.rostova@deskit.io',
+    department: 'Product',
+    team: 'Platform Roadmap',
+    manager: 'Vikram Joshi (VP of Product)',
+    status: 'yellow',
+    locations: ['Noida 4th Floor'],
+  });
+  patch('EMP-1304', {
+    name: 'Alex Rivera',
+    email: 'alex.rivera@deskit.io',
+    department: 'Engineering',
+    team: 'Frontend Core',
+    manager: 'Aarav Sharma (Engineering Director)',
+    status: 'green',
+    locations: ['Noida 4th Floor'],
+    avatar:
+      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+  });
+  patch('EMP-1305', {
+    name: 'Sarah Jenkins',
+    email: 'sarah.jenkins@deskit.io',
+    department: 'People & Culture',
+    team: 'Workplace Ops',
+    manager: 'Marcus Vance (Global Facilities Admin)',
+    status: 'green',
+    locations: ['Noida 4th Floor'],
+    avatar:
+      'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
+  });
+  patch('EMP-1306', {
+    name: 'Marcus Vance',
+    email: 'marcus.vance@deskit.io',
+    department: 'People & Culture',
+    team: 'Workplace Ops',
+    manager: 'Sarah Jenkins (Head of Workplace Ops)',
+    status: 'blue',
+    locations: ['Noida 4th Floor'],
+    avatar:
+      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+  });
+  patch('EMP-1307', {
+    name: 'James Wilson',
+    email: 'james.wilson@deskit.io',
+    department: 'Design',
+    team: 'Product Design',
+    manager: 'James Wilson (Principal UX Architect)',
+    status: 'green',
+    locations: ['Noida 4th Floor'],
+  });
+  patch('EMP-1308', {
+    name: 'Lucas Thorne',
+    email: 'lucas.thorne@deskit.io',
+    department: 'Engineering',
+    team: 'DevOps & Infra',
+    manager: 'David Chen (Backend Tech Lead)',
+    status: 'orange',
+    locations: ['Noida 4th Floor'],
+    avatar:
+      'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80',
+  });
+  // Hyderabad-primary, no Noida seat — multi-office request demos
+  patch('EMP-1601', {
+    name: 'Kavya Reddy',
+    email: 'kavya.reddy@deskit.io',
+    department: 'Engineering',
+    team: 'Backend Services',
+    manager: 'Aarav Sharma (Engineering Director)',
+    status: 'green',
+    locations: ['Hyderabad Office'],
+  });
 }

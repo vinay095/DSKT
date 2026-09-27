@@ -117,3 +117,24 @@ export function listPublishedFloorIds(): string[] {
   }
   return ids;
 }
+
+/** List floor ids that have a local DeskIt draft saved. */
+export function listDraftFloorIds(): string[] {
+  const ids: string[] = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(DRAFT_PREFIX)) {
+        ids.push(key.slice(DRAFT_PREFIX.length));
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return ids;
+}
+
+/** True when a local draft exists for this floor (excludes mock seeds). */
+export function hasLocalDraft(floorId: string): boolean {
+  return loadDraftFromStorage(floorId) != null;
+}

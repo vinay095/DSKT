@@ -5,6 +5,7 @@ import type { FloorOption } from '../../types/office';
 import { X, MapPin, Mail, Users } from 'lucide-react';
 import { PresenceBadge } from './PresenceBadge';
 import { getEmployeeLocationRows } from '../../lib/peopleSearch';
+import { formatDeskCodes } from '../../lib/employeeAssignments';
 import { usePermissions } from '../../hooks/usePermissions';
 
 export interface GoToFloorMapArgs {
@@ -111,7 +112,9 @@ export const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({
               <p className="text-xs text-content-secondary">No office assignments on record.</p>
             ) : (
               <ul className="space-y-2">
-                {locations.map((loc) => (
+                {locations.map((loc) => {
+                  const seatLabel = formatDeskCodes(loc.deskCodes);
+                  return (
                   <li key={loc.locationLabel}>
                     <button
                       type="button"
@@ -136,15 +139,24 @@ export const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({
                       </div>
                       <p className="text-[11px] text-content-secondary mt-0.5">
                         {loc.floorShortLabel}
-                        {loc.deskCode ? ` · Desk ${loc.deskCode}` : ''}
+                        {seatLabel ? ` · ${seatLabel}` : ' · No seat on this floor yet'}
                       </p>
+                      {loc.deskCodes.length > 1 && (
+                        <p className="text-[10px] text-content-secondary mt-0.5">
+                          Primary {loc.deskCodes[0]}
+                          {loc.deskCodes.slice(1).map((c) => (
+                            <span key={c}> · Additional {c}</span>
+                          ))}
+                        </p>
+                      )}
                       <p className="text-[10px] text-accent mt-1.5 inline-flex items-center gap-1 font-medium">
                         <MapPin className="w-3 h-3" aria-hidden />
                         View on floor map
                       </p>
                     </button>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
           </div>

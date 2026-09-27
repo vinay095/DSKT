@@ -21,6 +21,7 @@ import {
   uniqueDepartments,
   uniqueTeams,
 } from '../../lib/peopleSearch';
+import { formatDeskCodes } from '../../lib/employeeAssignments';
 import { usePermissions } from '../../hooks/usePermissions';
 import { AccessDenied } from '../common/AccessDenied';
 import { cn } from '../../lib/cn';
@@ -257,6 +258,7 @@ export const PeopleTeams: React.FC<PeopleTeamsProps> = ({
                       currentFloor,
                     );
                     const primary = rows[0];
+                    const seats = primary ? formatDeskCodes(primary.deskCodes) : '';
                     return (
                       <tr
                         key={emp.emp_id}
@@ -290,12 +292,17 @@ export const PeopleTeams: React.FC<PeopleTeamsProps> = ({
                             : '—'}
                         </td>
                         <td className="px-3 py-2.5 font-mono text-content-primary">
-                          {primary?.deskCode || '—'}
+                          {seats || '—'}
+                          {primary && primary.deskCodes.length > 1 && (
+                            <span className="block text-[10px] font-sans text-accent font-medium">
+                              +{primary.deskCodes.length - 1} additional
+                            </span>
+                          )}
                         </td>
                         <td className="px-3 py-2.5 text-content-secondary">
                           {rows.length}
                           {rows.length > 1 && (
-                            <span className="text-accent font-medium ml-1">multi</span>
+                            <span className="text-accent font-medium ml-1">offices</span>
                           )}
                         </td>
                       </tr>

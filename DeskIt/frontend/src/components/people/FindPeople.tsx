@@ -15,6 +15,7 @@ import {
   getEmployeeLocationRows,
   buildTeamSummaries,
 } from '../../lib/peopleSearch';
+import { formatDeskCodes } from '../../lib/employeeAssignments';
 import { cn } from '../../lib/cn';
 import { MapPin, Search, Users } from 'lucide-react';
 
@@ -149,6 +150,9 @@ export const FindPeople: React.FC<FindPeopleProps> = ({
                   currentFloor,
                 );
                 const primary = rows[0];
+                const seatSummary = primary
+                  ? formatDeskCodes(primary.deskCodes)
+                  : '';
                 return (
                   <li key={emp.emp_id}>
                     <button
@@ -175,12 +179,17 @@ export const FindPeople: React.FC<FindPeopleProps> = ({
                           <MapPin className="w-3 h-3 shrink-0" aria-hidden />
                           {primary
                             ? `${primary.officeName} · ${primary.floorShortLabel}${
-                                primary.deskCode ? ` · ${primary.deskCode}` : ''
+                                seatSummary ? ` · ${seatSummary}` : ''
                               }`
                             : 'No location'}
                           {rows.length > 1 && (
                             <span className="text-accent font-medium">
-                              +{rows.length - 1} more
+                              +{rows.length - 1} offices
+                            </span>
+                          )}
+                          {primary && primary.deskCodes.length > 1 && (
+                            <span className="text-accent font-medium">
+                              · {primary.deskCodes.length} seats
                             </span>
                           )}
                         </p>

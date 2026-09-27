@@ -1,31 +1,62 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { FloorPlan, FloorPlanDraft } from '../../types/floorplan';
 import { FloorDocumentV2 } from '../../types/floorDocument';
 import { FloorChangeRequest } from '../../types/seating';
 import type { FloorOption } from '../../types/office';
 import { FloorCreatorEmbed } from '../floorplan/FloorCreatorEmbed';
 import { StatCard } from '../common/StatCard';
-import { getAllSavedDrafts, loadPublishedFromStorage, saveDraftToStorage, savePublishedToStorage } from '../../lib/drafts';
+import {
+  getAllSavedDrafts,
+  loadDraftFromStorage,
+  loadPublishedFromStorage,
+  saveDraftToStorage,
+  savePublishedToStorage,
+} from '../../lib/drafts';
+import { INITIAL_FLOOR_PLAN } from '../../data/mockData';
 import { OFFICES, getOfficeById } from '../../data/offices';
 import { registerCustomFloor } from '../../data/floors';
 import { cloneFloorPlan, makeCloneFloorId } from '../../lib/cloneFloorPlan';
 import {
+  cloneFloorDocument,
+  loadDraftFloorDocument,
+  loadPublishedFloorDocument,
+  promoteDraftFloorDocument,
+  saveDraftFloorDocument,
+  savePublishedFloorDocument,
+} from '../../lib/publishedFloor';
+import {
   listFloorChangeRequests,
   updateFloorChangeRequestStatus,
 } from '../../lib/floorChangeRequests';
+import { getAdminOverviewMetrics } from '../../lib/adminMetrics';
+import {
+  formatTimestamp,
+  getFloorVersionSummary,
+} from '../../lib/floorVersioning';
 import {
   Edit3,
   Save,
   CheckCircle2,
   Building2,
   Upload,
-  Inbox,
   Copy,
   Layers,
+  FileStack,
+  Inbox,
+  Plus,
 } from 'lucide-react';
 import { PageHeader } from '../common/PageHeader';
 import { AccessDenied } from '../common/AccessDenied';
 import { usePermissions } from '../../hooks/usePermissions';
+import { AdminFloorWorkflow } from '../admin/AdminFloorWorkflow';
+import { FloorPlanRegistry } from '../admin/FloorPlanRegistry';
+import { AdminChangeRequestPanel } from '../admin/AdminChangeRequestPanel';
+import {
+  CloneFloorPlanDialog,
+  type CloneFloorPlanDialogResult,
+} from '../admin/CloneFloorPlanDialog';
+import { PublishDialog, type PublishTarget } from '../admin/PublishDialog';
+import { VersionBadge } from '../admin/VersionBadge';
 
 interface AdminDashboardProps {
   floorPlan: FloorPlan;
@@ -37,6 +68,8 @@ interface AdminDashboardProps {
   floors: FloorOption[];
   onFloorChange: (floorId: string) => void;
   onFloorsChanged: () => void;
+  onNavigateTab?: (tab: string) => void;
+  hasSvgMap?: boolean;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -49,6 +82,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   floors,
   onFloorChange,
   onFloorsChanged,
+  onNavigateTab,
+  hasSvgMap = false,
 }) => {
   const {
     canAccessAdminTools,
@@ -56,18 +91,43 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     canPublishFloorPlan,
     canManageFloorChangeRequests,
     canEditFloorPlan,
+    canManageDrafts,
     guard,
   } = usePermissions();
 
-  const [drafts] = useState<FloorPlanDraft[]>(() => getAllSavedDrafts(floorPlan.id));
+  const [drafts, setDrafts] = useState<FloorPlanDraft[]>([]);
   const [changeRequests, setChangeRequests] = useState<FloorChangeRequest[]>(() =>
     listFloorChangeRequests(),
   );
-  const [cloneName, setCloneName] = useState('');
-  const [cloneOfficeId, setCloneOfficeId] = useState(activeOfficeId);
+  const [cloneOpen, setCloneOpen] = useState(false);
   const [cloneMsg, setCloneMsg] = useState<string | null>(null);
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [publishDraft, setPublishDraft] = useState<FloorPlanDraft | null>(null);
+  const [newFloorName, setNewFloorName] = useState('');
+  const [newFloorMsg, setNewFloorMsg] = useState<string | null>(null);
+  const [versionTick, setVersionTick] = useState(0);
+
+  const refreshDrafts = () => setDrafts(getAllSavedDrafts(activeFloorId));
+
+  useEffect(() => {
+    refreshDrafts();
+  }, [activeFloorId, floorPlan.lastModified, versionTick]);
 
   const refreshRequests = () => setChangeRequests(listFloorChangeRequests());
+
+  const metrics = useMemo(
+    () => getAdminOverviewMetrics(floors, activeFloorId),
+    [floors, activeFloorId, changeRequests, versionTick],
+  );
+
+  const versionSummary = useMemo(
+    () => getFloorVersionSummary(activeFloorId, floorPlan),
+    [activeFloorId, floorPlan, versionTick],
+  );
+
+  const officeName = getOfficeById(activeOfficeId)?.name;
+  const floorLabel =
+    floors.find((f) => f.id === activeFloorId)?.shortLabel || floorPlan.name;
 
   const officeFloorCounts = useMemo(() => {
     return OFFICES.map((o) => ({
@@ -76,147 +136,144 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }));
   }, [floors]);
 
-  const handleClone = () => {
+  const pendingRequests = useMemo(
+    () => changeRequests.filter((r) => r.status === 'pending').slice(0, 3),
+    [changeRequests],
+  );
+
+  const handleCloneConfirm = (result: CloneFloorPlanDialogResult) => {
     if (!guard('canCloneFloorPlan', 'clone floor plan')) return;
     const source = loadPublishedFromStorage(activeFloorId);
     const newFloorId = makeCloneFloorId(activeFloorId);
-    const name =
-      cloneName.trim() ||
-      `${source.name || floorPlan.name} (Copy)`;
     const cloned = cloneFloorPlan(source, {
       newFloorId,
-      name,
-      officeId: cloneOfficeId,
-      building: getOfficeById(cloneOfficeId)?.name,
-      clearAssignments: true,
+      name: result.name,
+      officeId: result.officeId,
+      building: getOfficeById(result.officeId)?.name,
+      clearAssignments: result.clearAssignments,
     });
 
     registerCustomFloor({
       id: newFloorId,
-      officeId: cloneOfficeId,
-      label: name,
-      shortLabel: name.length > 28 ? `${name.slice(0, 26)}…` : name,
-      locationLabel: `${getOfficeById(cloneOfficeId)?.city || 'Office'} · ${name}`,
+      officeId: result.officeId,
+      label: result.name,
+      shortLabel:
+        result.name.length > 28 ? `${result.name.slice(0, 26)}…` : result.name,
+      locationLabel: `${getOfficeById(result.officeId)?.city || 'Office'} · ${result.name}`,
       isCustom: true,
       clonedFromId: activeFloorId,
     });
 
     saveDraftToStorage(cloned);
-    savePublishedToStorage(cloned);
+
+    if (result.includeSvgMap) {
+      const srcDoc = loadPublishedFloorDocument(activeFloorId);
+      if (srcDoc) {
+        const clonedDoc = cloneFloorDocument(srcDoc, { name: result.name });
+        if (result.publishImmediately) {
+          savePublishedFloorDocument(clonedDoc, newFloorId);
+        } else {
+          saveDraftFloorDocument(clonedDoc, newFloorId);
+        }
+      }
+    }
+
+    if (result.publishImmediately) {
+      const live: FloorPlan = {
+        ...cloned,
+        isPublished: true,
+        version: Math.max(cloned.version || 0, 1),
+      };
+      savePublishedToStorage(live);
+      onPublish(live);
+      if (result.includeSvgMap) {
+        const liveDoc = loadPublishedFloorDocument(newFloorId);
+        if (liveDoc) onCreatorPublished?.(liveDoc);
+      }
+    }
+
     onFloorsChanged();
-    onPublish(cloned);
     onFloorChange(newFloorId);
-    setCloneMsg(`Cloned as independent plan “${name}”. Assignments cleared — edit freely.`);
-    setCloneName('');
-    window.setTimeout(() => setCloneMsg(null), 4000);
+    setCloneOpen(false);
+    setCloneMsg(
+      result.publishImmediately
+        ? `Cloned and published “${result.name}”. Source plan unchanged.`
+        : `Cloned “${result.name}” as a draft. Source plan unchanged — edit, then publish.`,
+    );
+    setVersionTick((n) => n + 1);
+    window.setTimeout(() => setCloneMsg(null), 5000);
+    onNavigateTab?.(result.publishImmediately ? 'floorplan' : 'editor');
   };
 
-  const metricsSection = (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard
-          title="Offices"
-          value={`${OFFICES.length}`}
-          subtitle={OFFICES.map((o) => o.city).join(', ')}
-          icon={Building2}
-          colorScheme="purple"
-        />
-        <StatCard
-          title="Floor Plans"
-          value={`${floors.length}`}
-          subtitle="Independent maps per office"
-          icon={Layers}
-          colorScheme="blue"
-        />
-        <StatCard
-          title="Canvas Desks (this floor)"
-          value={floorPlan.desks.length}
-          subtitle={floorPlan.name}
-          icon={Edit3}
-          colorScheme="emerald"
-        />
-        <StatCard
-          title="Published Status"
-          value={floorPlan.isPublished ? `Live v${floorPlan.version ?? 1}` : 'Unpublished'}
-          subtitle="Employee & HR views"
-          icon={CheckCircle2}
-          colorScheme="amber"
-        />
-      </div>
+  const handlePublishConfirm = (target: PublishTarget) => {
+    if (!guard('canPublishFloorPlan', 'publish floor plan')) return;
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="p-5 rounded-2xl bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border space-y-3">
-          <h3 className="text-sm font-extrabold text-light-text dark:text-dark-text flex items-center gap-2">
-            <Building2 className="w-4 h-4" /> Offices & floors
-          </h3>
-          <ul className="space-y-2">
-            {officeFloorCounts.map(({ office, count }) => (
-              <li
-                key={office.id}
-                className="flex items-center justify-between text-xs text-light-text dark:text-dark-text"
-              >
-                <span>
-                  <span className="font-semibold">{office.name}</span>
-                  <span className="text-light-muted dark:text-dark-muted">
-                    {' '}
-                    · {office.city}, {office.country}
-                  </span>
-                </span>
-                <span className="font-mono text-light-muted dark:text-dark-muted">
-                  {count} floor{count === 1 ? '' : 's'}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
+    if (target === 'desk' || target === 'both') {
+      const desk =
+        publishDraft?.data ||
+        loadDraftFromStorage(activeFloorId) ||
+        floorPlan;
+      const next: FloorPlan = {
+        ...desk,
+        id: activeFloorId,
+        isPublished: true,
+        version: (floorPlan.isPublished ? floorPlan.version || 0 : 0) + 1,
+        lastModified: new Date().toISOString(),
+      };
+      savePublishedToStorage(next);
+      onPublish(next);
+    }
 
-        <div className="p-5 rounded-2xl bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border space-y-3">
-          <h3 className="text-sm font-extrabold text-light-text dark:text-dark-text flex items-center gap-2">
-            <Copy className="w-4 h-4" /> Clone current floor plan
-          </h3>
-          <p className="text-[11px] text-light-muted dark:text-dark-muted">
-            Creates an independent copy (new IDs). Source plan is never mutated. Seat assignments
-            are cleared on the clone.
-          </p>
-          <p className="text-[11px] font-medium text-light-text dark:text-dark-text">
-            Source: {floorPlan.name}
-            {floorPlan.clonedFromId ? ` · cloned from ${floorPlan.clonedFromId}` : ''}
-          </p>
-          <input
-            type="text"
-            value={cloneName}
-            onChange={(e) => setCloneName(e.target.value)}
-            placeholder="New plan name (optional)"
-            className="w-full px-3 py-2 rounded-xl border border-light-border dark:border-dark-border bg-slate-50 dark:bg-dark-sidebar text-xs"
-          />
-          <select
-            value={cloneOfficeId}
-            onChange={(e) => setCloneOfficeId(e.target.value)}
-            className="w-full px-3 py-2 rounded-xl border border-light-border dark:border-dark-border bg-slate-50 dark:bg-dark-sidebar text-xs"
-          >
-            {OFFICES.map((o) => (
-              <option key={o.id} value={o.id}>
-                Clone into {o.name}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={handleClone}
-            disabled={!canCloneFloorPlan}
-            className="w-full py-2.5 rounded-xl bg-accent hover:bg-accent-hover text-accent-foreground text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            <Copy className="w-3.5 h-3.5" /> Clone & open for editing
-          </button>
-          {cloneMsg && (
-            <p className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-              {cloneMsg}
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+    if (target === 'svg' || target === 'both') {
+      const promoted = promoteDraftFloorDocument(activeFloorId);
+      if (promoted) onCreatorPublished?.(promoted);
+    }
+
+    setPublishOpen(false);
+    setPublishDraft(null);
+    setVersionTick((n) => n + 1);
+    refreshDrafts();
+  };
+
+  const handleNewFloor = () => {
+    if (!guard('canEditFloorPlan', 'create floor plan')) return;
+    const newFloorId = `floor-new-${Date.now()}`;
+    const name = newFloorName.trim() || 'New Floor Plan';
+    const office = getOfficeById(activeOfficeId);
+
+    registerCustomFloor({
+      id: newFloorId,
+      officeId: activeOfficeId,
+      label: name,
+      shortLabel: name.length > 28 ? `${name.slice(0, 26)}…` : name,
+      locationLabel: `${office?.city || 'Office'} · ${name}`,
+      isCustom: true,
+    });
+
+    const empty: FloorPlan = {
+      ...INITIAL_FLOOR_PLAN,
+      id: newFloorId,
+      name,
+      building: office?.name || INITIAL_FLOOR_PLAN.building,
+      officeId: activeOfficeId,
+      desks: [],
+      rooms: [],
+      walls: [],
+      zones: [],
+      unusableRegions: [],
+      isPublished: false,
+      version: 0,
+      lastModified: new Date().toISOString(),
+    };
+
+    saveDraftToStorage(empty);
+    onFloorsChanged();
+    onFloorChange(newFloorId);
+    setNewFloorMsg(`Created “${name}” as a draft. Open Creator to design, then publish.`);
+    setNewFloorName('');
+    window.setTimeout(() => setNewFloorMsg(null), 4000);
+    onNavigateTab?.('editor');
+  };
 
   if (!canAccessAdminTools) {
     return (
@@ -235,135 +292,185 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   if (activeTab === 'change-requests') {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between gap-3">
-          <PageHeader
-            title="HR Floor Map Change Requests"
-            description="Review requests to add, remove, or modify elements. Apply changes in the Creator, then publish."
-          />
-          <button
-            type="button"
-            onClick={refreshRequests}
-            className="px-3 py-1.5 rounded-xl text-xs font-semibold border border-light-border dark:border-dark-border shrink-0"
-          >
-            Refresh
-          </button>
-        </div>
-
-        {changeRequests.length === 0 ? (
-          <div className="p-8 rounded-2xl border border-dashed border-light-border dark:border-dark-border text-center text-sm text-light-muted dark:text-dark-muted">
-            <Inbox className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            No change requests from HR yet.
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {changeRequests.map((req) => (
-              <div
-                key={req.id}
-                className="p-4 rounded-2xl bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border space-y-2"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-brandBlue-50 text-brandBlue-700 dark:bg-brandPurple-950 dark:text-brandPurple-300">
-                    {req.requestType}
-                  </span>
-                  <span className="text-[10px] font-mono text-light-muted dark:text-dark-muted">
-                    {new Date(req.createdAt).toLocaleString()} · {req.status}
-                  </span>
-                </div>
-                <h4 className="font-bold text-sm text-light-text dark:text-dark-text">
-                  {req.elementDescription}
-                </h4>
-                <p className="text-xs text-light-muted dark:text-dark-muted">{req.details}</p>
-                <p className="text-[10px] text-light-muted dark:text-dark-muted">
-                  From: {req.requestedBy}
-                </p>
-                {req.status === 'pending' && canManageFloorChangeRequests && (
-                  <div className="flex gap-2 pt-2">
-                    <button
-                      type="button"
-                      className="px-3 py-1 rounded-lg text-xs font-bold bg-accent text-accent-foreground"
-                      onClick={() => updateRequestStatus(req.id, 'acknowledged')}
-                    >
-                      Acknowledge
-                    </button>
-                    <button
-                      type="button"
-                      className="px-3 py-1 rounded-lg text-xs font-bold border border-emerald-300 text-emerald-700"
-                      onClick={() => updateRequestStatus(req.id, 'done')}
-                    >
-                      Mark done
-                    </button>
-                    <button
-                      type="button"
-                      className="px-3 py-1 rounded-lg text-xs font-bold border border-rose-200 text-rose-600"
-                      onClick={() => updateRequestStatus(req.id, 'rejected')}
-                    >
-                      Reject
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+      <div className="space-y-4">
+        <AdminFloorWorkflow
+          currentStep="select"
+          officeLabel={officeName}
+          floorLabel={floorLabel}
+          onNavigateTab={onNavigateTab}
+        />
+        <AdminChangeRequestPanel
+          requests={changeRequests}
+          floors={floors}
+          activeFloorId={activeFloorId}
+          canManage={canManageFloorChangeRequests}
+          onRefresh={refreshRequests}
+          onUpdateStatus={updateRequestStatus}
+          onOpenEditor={(floorId) => {
+            if (floorId) onFloorChange(floorId);
+            onNavigateTab?.('editor');
+          }}
+        />
       </div>
     );
   }
 
   if (activeTab === 'drafts') {
+    const hasSvgDraft = Boolean(loadDraftFloorDocument(activeFloorId));
+    const hasDeskDraft = Boolean(loadDraftFromStorage(activeFloorId)) || drafts.length > 0;
+
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
         <PageHeader
-          title="Drafts & Published"
-          description="Drafts for the active floor. Prefer Creator Preview → Publish for the live SVG map. Use Clone on Admin Metrics to duplicate into another office."
+          title="Drafts & versions"
+          description="Drafts stay private until you publish. Viewers only see the live version."
         />
+        <AdminFloorWorkflow
+          currentStep="draft"
+          officeLabel={officeName}
+          floorLabel={floorLabel}
+          onNavigateTab={onNavigateTab}
+        />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="ds-panel p-4 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] uppercase tracking-wider text-content-secondary font-semibold">
+                Published (viewers)
+              </p>
+              <VersionBadge
+                state={versionSummary.state === 'live' ? 'live' : 'unpublished'}
+                label={
+                  floorPlan.isPublished || hasSvgMap
+                    ? `Live v${Math.max(versionSummary.liveVersion, 1)}`
+                    : 'Not live'
+                }
+              />
+            </div>
+            <p className="text-sm font-bold text-content-primary">{floorLabel}</p>
+            <p className="text-[11px] text-content-secondary">
+              {versionSummary.detail}
+              {versionSummary.lastModified
+                ? ` · ${formatTimestamp(versionSummary.lastModified)}`
+                : ''}
+            </p>
+            <button
+              type="button"
+              onClick={() => onNavigateTab?.('floorplan')}
+              className="text-[11px] font-semibold text-accent"
+            >
+              View published map
+            </button>
+          </div>
+          <div className="ds-panel p-4 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] uppercase tracking-wider text-content-secondary font-semibold">
+                Working draft
+              </p>
+              <VersionBadge
+                state={hasDeskDraft || hasSvgDraft ? 'draft' : 'unpublished'}
+                label={hasDeskDraft || hasSvgDraft ? 'Draft' : 'None'}
+              />
+            </div>
+            <p className="text-sm font-bold text-content-primary">
+              {hasDeskDraft || hasSvgDraft ? 'Changes not yet live' : 'No local draft'}
+            </p>
+            <p className="text-[11px] text-content-secondary">
+              Last draft save:{' '}
+              {formatTimestamp(versionSummary.draftUpdatedAt)}
+              {hasSvgDraft ? ' · SVG draft staged' : ''}
+            </p>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <button
+                type="button"
+                disabled={!canEditFloorPlan}
+                onClick={() => onNavigateTab?.('editor')}
+                className="px-3 py-1.5 rounded-xl bg-accent text-accent-foreground text-xs font-bold disabled:opacity-50"
+              >
+                Continue editing
+              </button>
+              <button
+                type="button"
+                disabled={
+                  !canPublishFloorPlan ||
+                  !canManageDrafts ||
+                  (!hasDeskDraft && !hasSvgDraft)
+                }
+                onClick={() => {
+                  setPublishDraft(drafts[0] || null);
+                  setPublishOpen(true);
+                }}
+                className="px-3 py-1.5 rounded-xl border border-border text-xs font-bold inline-flex items-center gap-1 disabled:opacity-50"
+              >
+                <Upload className="w-3.5 h-3.5" /> Publish…
+              </button>
+            </div>
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {drafts.map((d) => (
             <div
               key={d.id}
-              className="p-5 rounded-2xl bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border shadow-sm flex flex-col justify-between space-y-4"
+              className="p-5 rounded-xl bg-surface border border-border shadow-sm flex flex-col justify-between space-y-4"
             >
               <div>
-                <div className="flex items-center justify-between">
-                  <span className="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase bg-brandPurple-100 text-brandPurple-700 dark:bg-brandPurple-950 dark:text-brandPurple-300 border border-brandPurple-300">
-                    Draft Saved
-                  </span>
-                  <span className="text-[10px] font-mono text-light-muted dark:text-dark-muted">
-                    {new Date(d.updatedAt).toLocaleDateString()}
+                <div className="flex items-center justify-between gap-2">
+                  <VersionBadge state="draft" label="Draft" />
+                  <span className="text-[10px] font-mono text-content-secondary">
+                    {formatTimestamp(d.updatedAt)}
                   </span>
                 </div>
-                <h4 className="font-bold text-sm text-light-text dark:text-dark-text mt-2">
-                  {d.name}
-                </h4>
-                <p className="text-xs text-light-muted dark:text-dark-muted mt-1">
-                  Desks: {d.data.desks.length} • Meeting Pods: {d.data.rooms.length} • Zones:{' '}
+                <h4 className="font-bold text-sm text-content-primary mt-2">{d.name}</h4>
+                <p className="text-xs text-content-secondary mt-1">
+                  Desks: {d.data.desks.length} · Rooms: {d.data.rooms.length} · Zones:{' '}
                   {d.data.zones.length}
                 </p>
               </div>
 
-              <div className="pt-3 border-t border-light-border dark:border-dark-border flex gap-2">
+              <div className="pt-3 border-t border-border flex flex-col gap-2">
                 <button
                   type="button"
-                  disabled={!canPublishFloorPlan}
-                  onClick={() => {
-                    if (!guard('canPublishFloorPlan', 'publish draft layout')) return;
-                    onPublish(d.data);
-                  }}
-                  className="flex-1 py-2 px-3 rounded-xl bg-accent hover:bg-accent-hover text-accent-foreground font-bold text-xs transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+                  disabled={!canEditFloorPlan}
+                  onClick={() => onNavigateTab?.('editor')}
+                  className="w-full py-2 px-3 rounded-xl border border-border font-bold text-xs disabled:opacity-50"
                 >
-                  <Upload className="w-3.5 h-3.5" /> Publish Live Layout
+                  Continue editing
+                </button>
+                <button
+                  type="button"
+                  disabled={!canPublishFloorPlan || !canManageDrafts}
+                  onClick={() => {
+                    setPublishDraft(d);
+                    setPublishOpen(true);
+                  }}
+                  className="w-full py-2 px-3 rounded-xl bg-accent hover:bg-accent-hover text-accent-foreground font-bold text-xs transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  <Upload className="w-3.5 h-3.5" /> Publish…
                 </button>
               </div>
             </div>
           ))}
-          {drafts.length === 0 && (
-            <div className="col-span-full p-8 rounded-2xl border border-dashed text-center text-sm text-light-muted dark:text-dark-muted">
+          {drafts.length === 0 && !hasSvgDraft && (
+            <div className="col-span-full p-8 rounded-xl border border-dashed border-border text-center text-sm text-content-secondary">
               <Save className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              No drafts for this floor yet. Save from Creator or publish a layout.
+              No drafts for this floor yet. Save from Creator, clone a plan, or create a new floor.
             </div>
           )}
         </div>
+
+        <PublishDialog
+          open={publishOpen}
+          floorLabel={[officeName, floorLabel].filter(Boolean).join(' · ')}
+          currentLiveVersion={versionSummary.liveVersion}
+          hasDeskDraft={hasDeskDraft}
+          hasSvgDraft={hasSvgDraft}
+          onClose={() => {
+            setPublishOpen(false);
+            setPublishDraft(null);
+          }}
+          onConfirm={handlePublishConfirm}
+        />
       </div>
     );
   }
@@ -374,19 +481,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         <AccessDenied description="Floor plan editing requires Admin layout-authoring permission." />
       );
     }
-    const officeName = getOfficeById(activeOfficeId)?.name;
-    const floorLabel =
-      floors.find((f) => f.id === activeFloorId)?.shortLabel || floorPlan.name;
 
     return (
       <div className="h-full min-h-0 flex flex-col gap-2">
         <PageHeader
-          title="Floor Plan Creator"
+          title="Floor plan editor"
           description={[officeName, floorLabel].filter(Boolean).join(' · ')}
           className="shrink-0"
         />
+        <AdminFloorWorkflow
+          currentStep="edit"
+          officeLabel={officeName}
+          floorLabel={floorLabel}
+          onNavigateTab={onNavigateTab}
+          className="shrink-0"
+        />
         <FloorCreatorEmbed
-          className="flex-1 min-h-[calc(100vh-10rem)]"
+          className="flex-1 min-h-[calc(100vh-12rem)]"
+          floorId={activeFloorId}
+          officeId={activeOfficeId}
           onPublished={onCreatorPublished}
         />
       </div>
@@ -396,10 +509,254 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Admin Metrics"
-        description="Offices, floor plans, and clone tools. Switch office/floor in the header to change the active plan."
+        title="Admin overview"
+        description="Manage offices, floor plans, drafts, and change requests. Geometry stays in Creator."
       />
-      {metricsSection}
+      <AdminFloorWorkflow
+        currentStep="select"
+        officeLabel={officeName}
+        floorLabel={floorLabel}
+        onNavigateTab={onNavigateTab}
+      />
+
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <VersionBadge state={versionSummary.state} label={versionSummary.label} />
+        <span className="text-content-secondary">{versionSummary.detail}</span>
+        {versionSummary.draftUpdatedAt && (
+          <span className="text-content-secondary">
+            · Draft saved {formatTimestamp(versionSummary.draftUpdatedAt)}
+          </span>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <StatCard
+          title="Offices"
+          value={metrics.officeCount}
+          subtitle={OFFICES.map((o) => o.city).join(', ')}
+          icon={Building2}
+          colorScheme="purple"
+        />
+        <StatCard
+          title="Floors"
+          value={metrics.floorCount}
+          subtitle="Across all offices"
+          icon={Layers}
+          colorScheme="blue"
+        />
+        <StatCard
+          title="Published SVG maps"
+          value={metrics.publishedSvgCount}
+          subtitle={`${metrics.publishedLegacyCount} desk layouts in storage`}
+          icon={CheckCircle2}
+          colorScheme="emerald"
+        />
+        <StatCard
+          title="Floors with drafts"
+          value={metrics.draftCount}
+          subtitle="Local DeskIt drafts"
+          icon={FileStack}
+          colorScheme="amber"
+        />
+        <StatCard
+          title="Pending change requests"
+          value={metrics.pendingChangeRequests}
+          subtitle="From HR"
+          icon={Inbox}
+          colorScheme="amber"
+        />
+        <StatCard
+          title="Active floor"
+          value={
+            metrics.activeFloorPublished
+              ? `Live v${metrics.activeFloorVersion || 1}`
+              : 'Unpublished'
+          }
+          subtitle={`${floorPlan.desks.length} desks · ${floorLabel}`}
+          icon={Edit3}
+          colorScheme="blue"
+        />
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={!canEditFloorPlan}
+          onClick={() => onNavigateTab?.('editor')}
+          className="px-3 py-2 rounded-xl bg-accent text-accent-foreground text-xs font-bold disabled:opacity-50"
+        >
+          Open editor
+        </button>
+        <button
+          type="button"
+          onClick={() => onNavigateTab?.('drafts')}
+          className="px-3 py-2 rounded-xl border border-border text-xs font-bold"
+        >
+          Drafts & versions
+        </button>
+        <button
+          type="button"
+          onClick={() => onNavigateTab?.('floorplan')}
+          className="px-3 py-2 rounded-xl border border-border text-xs font-bold"
+        >
+          Published maps
+        </button>
+        <button
+          type="button"
+          onClick={() => onNavigateTab?.('change-requests')}
+          className="px-3 py-2 rounded-xl border border-border text-xs font-bold inline-flex items-center gap-1.5"
+        >
+          Change requests
+          {metrics.pendingChangeRequests > 0 && (
+            <span className="px-1.5 py-0.5 rounded-md bg-warning-muted text-warning text-[10px] font-bold">
+              {metrics.pendingChangeRequests}
+            </span>
+          )}
+        </button>
+      </div>
+
+      <FloorPlanRegistry
+        floors={floors}
+        activeFloorId={activeFloorId}
+        onSelectFloor={onFloorChange}
+        onNavigateTab={onNavigateTab}
+      />
+
+      {pendingRequests.length > 0 && (
+        <div className="ds-panel p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-sm font-bold text-content-primary flex items-center gap-2">
+              <Inbox className="w-4 h-4" /> Pending change requests
+            </h3>
+            <button
+              type="button"
+              onClick={() => onNavigateTab?.('change-requests')}
+              className="text-[11px] font-semibold text-accent"
+            >
+              View all
+            </button>
+          </div>
+          <ul className="space-y-2">
+            {pendingRequests.map((r) => (
+              <li
+                key={r.id}
+                className="flex items-start justify-between gap-3 text-xs border-b border-border last:border-0 pb-2 last:pb-0"
+              >
+                <div className="min-w-0">
+                  <p className="font-semibold text-content-primary truncate">
+                    {r.elementDescription}
+                  </p>
+                  <p className="text-content-secondary truncate">{r.details}</p>
+                </div>
+                <button
+                  type="button"
+                  className="shrink-0 text-[11px] font-bold text-accent"
+                  onClick={() => {
+                    if (r.floorId) onFloorChange(r.floorId);
+                    onNavigateTab?.('editor');
+                  }}
+                >
+                  Open editor
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="p-5 rounded-xl bg-surface border border-border space-y-3">
+          <h3 className="text-sm font-extrabold text-content-primary flex items-center gap-2">
+            <Building2 className="w-4 h-4" /> Offices & floors
+          </h3>
+          <ul className="space-y-2">
+            {officeFloorCounts.map(({ office, count }) => (
+              <li
+                key={office.id}
+                className="flex items-center justify-between text-xs text-content-primary"
+              >
+                <span>
+                  <span className="font-semibold">{office.name}</span>
+                  <span className="text-content-secondary">
+                    {' '}
+                    · {office.city}, {office.country}
+                  </span>
+                </span>
+                <span className="font-mono text-content-secondary">
+                  {count} floor{count === 1 ? '' : 's'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="p-5 rounded-xl bg-surface border border-border space-y-3">
+          <h3 className="text-sm font-extrabold text-content-primary flex items-center gap-2">
+            <Plus className="w-4 h-4" /> New floor plan
+          </h3>
+          <p className="text-[11px] text-content-secondary">
+            Creates an empty draft for the active office and opens the editor. Does not publish
+            until you publish from Creator.
+          </p>
+          <input
+            type="text"
+            value={newFloorName}
+            onChange={(e) => setNewFloorName(e.target.value)}
+            placeholder="Plan name (optional)"
+            className="w-full px-3 py-2 rounded-xl border border-border bg-surface-elevated text-xs"
+          />
+          <button
+            type="button"
+            onClick={handleNewFloor}
+            disabled={!canEditFloorPlan}
+            className="w-full py-2.5 rounded-xl bg-accent hover:bg-accent-hover text-accent-foreground text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            <Plus className="w-3.5 h-3.5" /> Create & open editor
+          </button>
+          {newFloorMsg && (
+            <p className="text-[11px] font-semibold text-success">{newFloorMsg}</p>
+          )}
+        </div>
+      </div>
+
+      <div className="p-5 rounded-xl bg-surface border border-border space-y-3">
+        <h3 className="text-sm font-extrabold text-content-primary flex items-center gap-2">
+          <Copy className="w-4 h-4" /> Clone current floor plan
+        </h3>
+        <p className="text-[11px] text-content-secondary">
+          Independent copy with new IDs. Choose destination office, what to copy, and whether to
+          publish immediately or keep as draft.
+        </p>
+        <p className="text-[11px] font-medium text-content-primary flex flex-wrap items-center gap-2">
+          Source: {officeName} · {floorLabel}
+          <VersionBadge state={versionSummary.state} label={versionSummary.label} />
+          {floorPlan.clonedFromId ? (
+            <span className="text-content-secondary">· was cloned from {floorPlan.clonedFromId}</span>
+          ) : null}
+        </p>
+        <button
+          type="button"
+          onClick={() => setCloneOpen(true)}
+          disabled={!canCloneFloorPlan}
+          className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-accent hover:bg-accent-hover text-accent-foreground text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          <Copy className="w-3.5 h-3.5" /> Clone floor plan…
+        </button>
+        {cloneMsg && (
+          <p className="text-[11px] font-semibold text-success">{cloneMsg}</p>
+        )}
+      </div>
+
+      <CloneFloorPlanDialog
+        open={cloneOpen}
+        sourcePlan={floorPlan}
+        sourceFloorId={activeFloorId}
+        sourceFloorLabel={floorLabel}
+        floors={floors}
+        defaultOfficeId={activeOfficeId}
+        onClose={() => setCloneOpen(false)}
+        onConfirm={handleCloneConfirm}
+      />
     </div>
   );
 };

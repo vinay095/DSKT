@@ -3,6 +3,14 @@ import type { DeskElement } from '../types/floorplan';
 import type { FloorOption } from '../types/office';
 import { TEAMS, type Team } from '../data/teams';
 import { floorByLocationLabel, getOfficeById } from '../data/offices';
+import {
+  getEmployeeLocationRows,
+  type EmployeeLocationRow,
+} from './employeeAssignments';
+import { desksForEmployee } from './seatAssignment';
+
+export type { EmployeeLocationRow };
+export { getEmployeeLocationRows };
 
 export interface PeopleFilters {
   query: string;
@@ -21,48 +29,6 @@ export const DEFAULT_PEOPLE_FILTERS: PeopleFilters = {
   presence: 'all',
   seatStatus: 'all',
 };
-
-export interface EmployeeLocationRow {
-  locationLabel: string;
-  officeName: string;
-  floorShortLabel: string;
-  floorId?: string;
-  officeId?: string;
-  isPrimary: boolean;
-  deskCode?: string;
-}
-
-/** Resolve employee locations into office/floor rows (multi-office aware). */
-export function getEmployeeLocationRows(
-  emp: DbEmployee,
-  floors: FloorOption[],
-  currentFloorDesks?: DeskElement[],
-  currentFloor?: FloorOption,
-): EmployeeLocationRow[] {
-  return emp.locations.map((locationLabel, index) => {
-    const floor = floorByLocationLabel(locationLabel, floors);
-    const office = floor ? getOfficeById(floor.officeId) : undefined;
-    const onThisFloor =
-      currentFloor &&
-      currentFloorDesks &&
-      locationLabel === currentFloor.locationLabel;
-    const desk = onThisFloor
-      ? currentFloorDesks.find(
-          (d) => d.assignedUserId === emp.emp_id || d.assignedUserName === emp.name,
-        )
-      : undefined;
-
-    return {
-      locationLabel,
-      officeName: office?.name || locationLabel,
-      floorShortLabel: floor?.shortLabel || locationLabel,
-      floorId: floor?.id,
-      officeId: floor?.officeId,
-      isPrimary: index === 0,
-      deskCode: desk?.code,
-    };
-  });
-}
 
 export function matchesPeopleQuery(emp: DbEmployee, query: string): boolean {
   if (!query.trim()) return true;
@@ -104,10 +70,7 @@ export function filterEmployees(
     if (filters.seatStatus !== 'all' && currentFloor && currentFloorDesks) {
       const onFloor = emp.locations.includes(currentFloor.locationLabel);
       const hasDesk =
-        onFloor &&
-        currentFloorDesks.some(
-          (d) => d.assignedUserId === emp.emp_id || d.assignedUserName === emp.name,
-        );
+        onFloor && desksForEmployee(currentFloorDesks, emp.emp_id, emp.name).length > 0;
       if (filters.seatStatus === 'assigned' && !hasDesk) return false;
       if (filters.seatStatus === 'unassigned' && hasDesk) return false;
     }

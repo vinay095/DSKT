@@ -3,9 +3,10 @@ import { FloorPlan, FloorPlanDraft } from '../types/floorplan';
 import { Department, SeatAssignmentRequest } from '../types/seating';
 import { DEFAULT_FLOOR_CONFIG } from '../geometry/grid';
 
+/** Demo SSO users — ids match MOCK_999 showcase EMP slots (Phase 10). */
 export const MOCK_USERS: Record<string, User> = {
   employee: {
-    id: 'usr-1',
+    id: 'EMP-1304',
     name: 'Alex Rivera',
     email: 'alex.rivera@deskit.io',
     role: 'employee',
@@ -13,10 +14,11 @@ export const MOCK_USERS: Record<string, User> = {
     title: 'Senior Frontend Engineer',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
     assignedDeskId: 'desk-104',
-    floorId: 'floor-4'
+    floorId: 'floor-4',
+    team: 'Frontend Core',
   },
   hr: {
-    id: 'usr-2',
+    id: 'EMP-1305',
     name: 'Sarah Jenkins',
     email: 'sarah.jenkins@deskit.io',
     role: 'hr',
@@ -24,10 +26,11 @@ export const MOCK_USERS: Record<string, User> = {
     title: 'Head of Workplace Operations',
     avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
     assignedDeskId: 'desk-201',
-    floorId: 'floor-4'
+    floorId: 'floor-4',
+    team: 'Workplace Ops',
   },
   admin: {
-    id: 'usr-3',
+    id: 'EMP-1306',
     name: 'Marcus Vance',
     email: 'marcus.vance@deskit.io',
     role: 'admin',
@@ -35,8 +38,9 @@ export const MOCK_USERS: Record<string, User> = {
     title: 'Global Facilities Admin',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
     assignedDeskId: 'desk-301',
-    floorId: 'floor-4'
-  }
+    floorId: 'floor-4',
+    team: 'Workplace Ops',
+  },
 };
 
 export const DEPARTMENTS: Department[] = [
@@ -89,10 +93,12 @@ export const INITIAL_FLOOR_PLAN: FloorPlan = {
       y: 3,
       rotation: 0,
       status: 'occupied',
-      assignedUserId: 'usr-4',
-      assignedUserName: 'David Chen',
-      department: 'Engineering',
-      team: 'Backend Services',
+      // Priya primary seat (also has A-105 additional — multi-seat demo)
+      assignedUserId: 'EMP-1301',
+      assignedUserName: 'Priya Sharma',
+      assignedUserStatus: 'green',
+      department: 'Marketing',
+      team: 'Growth & SEO',
       hasMonitor: true,
       isStandingDesk: true,
       geometry: {
@@ -114,10 +120,11 @@ export const INITIAL_FLOOR_PLAN: FloorPlan = {
       y: 3,
       rotation: 0,
       status: 'occupied',
-      assignedUserId: 'usr-5',
-      assignedUserName: 'Elena Rostova',
-      department: 'Product',
-      team: 'Platform Roadmap',
+      assignedUserId: 'EMP-1302',
+      assignedUserName: 'David Chen',
+      assignedUserStatus: 'green',
+      department: 'Engineering',
+      team: 'Backend Services',
       hasMonitor: true,
       isStandingDesk: false,
       geometry: {
@@ -139,10 +146,11 @@ export const INITIAL_FLOOR_PLAN: FloorPlan = {
       y: 3,
       rotation: 0,
       status: 'occupied',
-      assignedUserId: 'usr-6',
-      assignedUserName: 'James Wilson',
-      department: 'Design',
-      team: 'Product Design',
+      assignedUserId: 'EMP-1303',
+      assignedUserName: 'Elena Rostova',
+      assignedUserStatus: 'yellow',
+      department: 'Product',
+      team: 'Platform Roadmap',
       hasMonitor: true,
       isStandingDesk: true,
     },
@@ -153,8 +161,9 @@ export const INITIAL_FLOOR_PLAN: FloorPlan = {
       y: 5,
       rotation: 0,
       status: 'occupied',
-      assignedUserId: 'usr-1',
+      assignedUserId: 'EMP-1304',
       assignedUserName: 'Alex Rivera',
+      assignedUserStatus: 'green',
       department: 'Engineering',
       team: 'Frontend Core',
       hasMonitor: true,
@@ -166,11 +175,17 @@ export const INITIAL_FLOOR_PLAN: FloorPlan = {
       x: 5,
       y: 5,
       rotation: 0,
-      status: 'available',
-      department: 'Engineering',
-      team: 'Frontend Core',
+      status: 'occupied',
+      // Priya additional seat (same floor, same office)
+      assignedUserId: 'EMP-1301',
+      assignedUserName: 'Priya Sharma',
+      assignedUserStatus: 'green',
+      department: 'Marketing',
+      team: 'Growth & SEO',
       hasMonitor: true,
       isStandingDesk: false,
+      isTemporary: true,
+      notes: 'Additional hot-desk for cross-functional project',
     },
     {
       id: 'desk-106',
@@ -191,8 +206,9 @@ export const INITIAL_FLOOR_PLAN: FloorPlan = {
       y: 3,
       rotation: 0,
       status: 'occupied',
-      assignedUserId: 'usr-2',
+      assignedUserId: 'EMP-1305',
       assignedUserName: 'Sarah Jenkins',
+      assignedUserStatus: 'green',
       department: 'People & Culture',
       team: 'Workplace Ops',
       hasMonitor: true,
@@ -241,12 +257,28 @@ export const INITIAL_FLOOR_PLAN: FloorPlan = {
       y: 10,
       rotation: 0,
       status: 'occupied',
-      assignedUserId: 'usr-3',
+      assignedUserId: 'EMP-1306',
       assignedUserName: 'Marcus Vance',
+      assignedUserStatus: 'blue',
       department: 'People & Culture',
       team: 'Workplace Ops',
       hasMonitor: true,
       isStandingDesk: true,
+    },
+    {
+      id: 'desk-107',
+      code: 'A-107',
+      x: 9,
+      y: 5,
+      rotation: 0,
+      status: 'occupied',
+      assignedUserId: 'EMP-1307',
+      assignedUserName: 'James Wilson',
+      assignedUserStatus: 'green',
+      department: 'Design',
+      team: 'Product Design',
+      hasMonitor: true,
+      isStandingDesk: false,
     },
     {
       id: 'desk-302',
@@ -277,26 +309,46 @@ export const INITIAL_FLOOR_PLAN: FloorPlan = {
 export const MOCK_REQUESTS: SeatAssignmentRequest[] = [
   {
     id: 'req-1',
-    userId: 'usr-7',
+    userId: 'EMP-1301',
     userName: 'Priya Sharma',
-    userAvatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&auto=format&fit=crop&q=80',
+    userAvatar:
+      'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&auto=format&fit=crop&q=80',
     department: 'Marketing',
     requestedDeskId: 'desk-202',
+    floorId: 'floor-4',
+    officeId: 'office-noida',
     status: 'pending',
     requestDate: '2026-09-21',
-    notes: 'Needs standing desk near Engineering team for cross-functional project.'
+    notes:
+      'Needs standing desk near Engineering for cross-functional work (already has A-101 + A-105).',
   },
   {
     id: 'req-2',
-    userId: 'usr-8',
+    userId: 'EMP-1308',
     userName: 'Lucas Thorne',
-    userAvatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80',
+    userAvatar:
+      'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80',
     department: 'Engineering',
     requestedDeskId: 'desk-204',
+    floorId: 'floor-4',
+    officeId: 'office-noida',
     status: 'pending',
     requestDate: '2026-09-22',
-    notes: 'DevOps lead requiring dual monitor setup desk in Zone A.'
-  }
+    notes: 'DevOps lead requiring dual-monitor desk in Product bay (currently unassigned on map).',
+  },
+  {
+    id: 'req-3',
+    userId: 'EMP-1601',
+    userName: 'Kavya Reddy',
+    userAvatar:
+      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
+    department: 'Engineering',
+    floorId: 'floor-hyd-1',
+    officeId: 'office-hyderabad',
+    status: 'approved',
+    requestDate: '2026-09-18',
+    notes: 'Approved — allocate on Hyderabad floor when a published map is available.',
+  },
 ];
 
 export const MOCK_DRAFTS: FloorPlanDraft[] = [

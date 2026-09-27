@@ -21,6 +21,9 @@ import {
 } from '../../lib/publishedFloor';
 import { PublishedFloorMap, type MapElementSelection } from '../floorplan/PublishedFloorMap';
 import { PropertiesPanel } from '../floorplan/PropertiesPanel';
+import { PageHeader } from '../common/PageHeader';
+import { AdminFloorWorkflow } from '../admin/AdminFloorWorkflow';
+import { FloorPlanRegistry } from '../admin/FloorPlanRegistry';
 import { DEFAULT_TAB } from '../../lib/permissions';
 
 const SIDEBAR_COLLAPSED_KEY = 'deskit_sidebar_collapsed';
@@ -32,6 +35,14 @@ const PAGE_LABELS: Record<string, string> = {
   people: 'People & Teams',
   assignments: 'Seat Allocation',
   requests: 'Seat Requests',
+  editor: 'Floor Plan Editor',
+  drafts: 'Drafts & Versions',
+  'change-requests': 'Change Requests',
+};
+
+const ADMIN_PAGE_LABELS: Partial<Record<string, string>> = {
+  dashboard: 'Admin Overview',
+  floorplan: 'Published Maps',
   editor: 'Floor Plan Editor',
   drafts: 'Drafts & Versions',
   'change-requests': 'Change Requests',
@@ -251,60 +262,89 @@ export const Layout: React.FC = () => {
           />
         );
       }
-      if (publishedDoc) {
-        return (
-          <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-[min(65vh,600px)]">
-            <PublishedFloorMap
-              document={publishedDoc}
-              desks={currentFloorPlan.desks}
-              showGrid={publishedShowGrid}
-              onToggleGrid={() => setPublishedShowGrid((v) => !v)}
-              searchQuery={searchQuery}
-              compactChrome
-              showHoverTooltip
-              onDeskClick={(desk) => {
-                setViewMapElement(null);
-                setViewDesk(desk);
-              }}
-              onEntityClick={(el) => {
-                setViewDesk(null);
-                setViewMapElement(el);
-              }}
-              onBackgroundClick={() => {
-                setViewDesk(null);
-                setViewMapElement(null);
-              }}
-              selectedDeskId={viewDesk?.id}
-              selectedEntityId={viewMapElement?.objectId}
-              className="flex-1 min-h-[min(55vh,520px)]"
-            />
-            <PropertiesPanel
-              selectedDesk={viewDesk}
-              selectedMapElement={viewMapElement}
-              desks={currentFloorPlan.desks}
-              floors={floors}
-              onClose={() => {
-                setViewDesk(null);
-                setViewMapElement(null);
-              }}
-              floorContext={{
-                building: activeOffice?.name || currentFloorPlan.building,
-                floorName: activeFloor?.shortLabel || currentFloorPlan.name,
-              }}
-            />
-          </div>
-        );
-      }
-      return (
+
+      const mapPane = publishedDoc ? (
+        <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-[min(65vh,600px)]">
+          <PublishedFloorMap
+            document={publishedDoc}
+            desks={currentFloorPlan.desks}
+            showGrid={publishedShowGrid}
+            onToggleGrid={() => setPublishedShowGrid((v) => !v)}
+            searchQuery={searchQuery}
+            compactChrome
+            showHoverTooltip
+            onDeskClick={(desk) => {
+              setViewMapElement(null);
+              setViewDesk(desk);
+            }}
+            onEntityClick={(el) => {
+              setViewDesk(null);
+              setViewMapElement(el);
+            }}
+            onBackgroundClick={() => {
+              setViewDesk(null);
+              setViewMapElement(null);
+            }}
+            selectedDeskId={viewDesk?.id}
+            selectedEntityId={viewMapElement?.objectId}
+            className="flex-1 min-h-[min(55vh,520px)]"
+          />
+          <PropertiesPanel
+            selectedDesk={viewDesk}
+            selectedMapElement={viewMapElement}
+            desks={currentFloorPlan.desks}
+            floors={floors}
+            onClose={() => {
+              setViewDesk(null);
+              setViewMapElement(null);
+            }}
+            floorContext={{
+              building: activeOffice?.name || currentFloorPlan.building,
+              floorName: activeFloor?.shortLabel || currentFloorPlan.name,
+            }}
+          />
+        </div>
+      ) : (
         <div className="flex-1 min-h-0 flex flex-col gap-3">
           <p className="text-xs text-content-secondary shrink-0">
-            No published SVG map yet — showing desk layout. Admin can publish from Creator.
+            No published SVG map yet for this floor — showing desk layout. Publish from Creator
+            (Preview → Publish) to go live.
           </p>
           <div className="flex-1 min-h-[min(60vh,560px)]">
             <FloorPlanViewer floorPlan={currentFloorPlan} searchQuery={searchQuery} />
           </div>
         </div>
       );
+
+      if (canAccessAdminTools) {
+        return (
+          <div className="flex flex-col gap-4 flex-1 min-h-0">
+            <PageHeader
+              title="Published maps"
+              description="Live SVG maps for Employee & HR. Switch floors in the header or registry below."
+            />
+            <AdminFloorWorkflow
+              currentStep="published"
+              officeLabel={activeOffice?.name}
+              floorLabel={activeFloor?.shortLabel || currentFloorPlan.name}
+              onNavigateTab={handleTabChange}
+            />
+            <p className="text-[11px] text-content-secondary -mt-2">
+              Live published map only — drafts are not visible here. Publish from Drafts &amp;
+              Versions or Creator Preview to update viewers.
+            </p>
+            <FloorPlanRegistry
+              floors={floors}
+              activeFloorId={activeFloorId}
+              onSelectFloor={handleFloorChange}
+              onNavigateTab={handleTabChange}
+            />
+            {mapPane}
+          </div>
+        );
+      }
+
+      return mapPane;
     }
 
     if (canAccessHrTools) {
@@ -336,6 +376,8 @@ export const Layout: React.FC = () => {
           floors={floors}
           onFloorChange={handleFloorChange}
           onFloorsChanged={handleFloorsChanged}
+          onNavigateTab={handleTabChange}
+          hasSvgMap={Boolean(publishedDoc)}
         />
       );
     }
@@ -376,7 +418,11 @@ export const Layout: React.FC = () => {
             onFloorChange={handleFloorChange}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
-            pageLabel={PAGE_LABELS[activeTab]}
+            pageLabel={
+              canAccessAdminTools
+                ? ADMIN_PAGE_LABELS[activeTab] || PAGE_LABELS[activeTab]
+                : PAGE_LABELS[activeTab]
+            }
           />
         }
       >

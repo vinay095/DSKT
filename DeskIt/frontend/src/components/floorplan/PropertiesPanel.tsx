@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { DeskElement, RoomElement, ZoneElement, UnusableRegion } from '../../types/floorplan';
 import { UserRole } from '../../types/auth';
 import { MOCK_999_EMPLOYEES } from '../../data/employeesData';
+import { otherSeatsOnFloor } from '../../lib/employeeAssignments';
 import type { MapElementSelection } from './PublishedFloorMap';
 import { getCategoryStyle } from '../../lib/categoryStyles';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -76,6 +77,11 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       ) || null
     );
   }, [selectedDesk]);
+
+  const additionalSeats = useMemo(() => {
+    if (!selectedDesk) return [];
+    return otherSeatsOnFloor(desks, selectedDesk);
+  }, [selectedDesk, desks]);
 
   const nothingSelected =
     !selectedDesk &&
@@ -214,6 +220,20 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                   {selectedDesk.startDate && selectedDesk.endDate
                     ? ` · ${selectedDesk.startDate} → ${selectedDesk.endDate}`
                     : ''}
+                </p>
+              )}
+              {additionalSeats.length > 0 && (
+                <p className="text-[11px] text-content-secondary">
+                  Also seated on this floor:{' '}
+                  <span className="font-mono font-semibold text-content-primary">
+                    {additionalSeats.map((d) => d.code).join(', ')}
+                  </span>
+                  <span className="text-accent font-medium"> · additional</span>
+                </p>
+              )}
+              {directoryEmployee && directoryEmployee.locations.length > 1 && (
+                <p className="text-[11px] text-content-secondary">
+                  Offices on record: {directoryEmployee.locations.length} (see More details)
                 </p>
               )}
             </div>

@@ -33,3 +33,7 @@ export function updateFloorChangeRequestStatus(
   const all = listFloorChangeRequests().map((r) => (r.id === id ? { ...r, status } : r));
   localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
 }
+
+export function countPendingFloorChangeRequests(): number {
+  return listFloorChangeRequests().filter((r) => r.status === 'pending').length;
+}

@@ -11,6 +11,7 @@ import { useAuth } from '../../context/AuthContext';
 import { StatCard } from '../common/StatCard';
 import { FindPeople } from '../people/FindPeople';
 import type { GoToFloorMapArgs } from '../people/EmployeeDrawer';
+import { desksForEmployee } from '../../lib/seatAssignment';
 import { MapPin, Users, Sparkles, Building2 } from 'lucide-react';
 
 interface EmployeeDashboardProps {
@@ -39,9 +40,13 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({
   const [inspectedMapElement, setInspectedMapElement] = useState<MapElementSelection | null>(null);
   const [showGrid, setShowGrid] = useState(true);
 
+  const myDesks = user
+    ? desksForEmployee(floorPlan.desks, user.id, user.name)
+    : [];
   const myDesk =
-    floorPlan.desks.find((d) => d.assignedUserId === user?.id) ||
+    myDesks[0] ||
     floorPlan.desks.find((d) => d.id === user?.assignedDeskId);
+  const additionalDesks = myDesks.slice(1);
   const availableDesksCount = floorPlan.desks.filter((d) => d.status === 'available').length;
   const totalDesks = floorPlan.desks.length;
   const onSiteCount = MOCK_999_EMPLOYEES.filter((e) => e.status === 'green').length;
@@ -68,14 +73,20 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({
                 Hello, {user?.name.split(' ')[0]}
               </span>
               <h2 className="text-2xl font-bold mt-2 tracking-tight">
-                {myDesk ? `Desk ${myDesk.code} Assigned Today` : 'No Desk Assigned'}
+                {myDesk
+                  ? additionalDesks.length > 0
+                    ? `Primary desk ${myDesk.code}`
+                    : `Desk ${myDesk.code} Assigned Today`
+                  : 'No Desk Assigned'}
               </h2>
               <p className="text-xs opacity-90 mt-1">
-                {myDesk?.team
-                  ? `Team: ${myDesk.team}`
-                  : myDesk?.department
-                    ? myDesk.department
-                    : 'Use Find People to locate colleagues'}
+                {additionalDesks.length > 0
+                  ? `Additional on this floor: ${additionalDesks.map((d) => d.code).join(', ')}`
+                  : myDesk?.team
+                    ? `Team: ${myDesk.team}`
+                    : myDesk?.department
+                      ? myDesk.department
+                      : 'Use Find People to locate colleagues'}
               </p>
             </div>
             <div className="p-3 bg-white/10 rounded-lg">

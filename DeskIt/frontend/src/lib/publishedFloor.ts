@@ -169,4 +169,121 @@ export function savePublishedFloorDocument(doc: FloorDocumentV2, floorId: string
   localStorage.setItem(DESKIT_PUBLISHED_FLOOR_DOC_KEY, payload);
 }
 
+/** Floor ids that have a per-floor Creator SVG document published. */
+export function listPublishedFloorDocumentIds(): string[] {
+  const prefix = `${DESKIT_PUBLISHED_FLOOR_DOC_KEY}__`;
+  const ids: string[] = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(prefix)) {
+        ids.push(key.slice(prefix.length));
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return ids;
+}
+
+const DRAFT_FLOOR_DOC_PREFIX = 'deskit_draft_floor_document_v2__';
+
+export function draftFloorDocKey(floorId: string): string {
+  return `${DRAFT_FLOOR_DOC_PREFIX}${floorId}`;
+}
+
+export function loadDraftFloorDocument(floorId: string): FloorDocumentV2 | null {
+  try {
+    return parseDoc(localStorage.getItem(draftFloorDocKey(floorId)));
+  } catch {
+    return null;
+  }
+}
+
+export function saveDraftFloorDocument(doc: FloorDocumentV2, floorId: string): void {
+  const next: FloorDocumentV2 = {
+    ...doc,
+    savedAt: new Date().toISOString(),
+  };
+  localStorage.setItem(draftFloorDocKey(floorId), JSON.stringify(next));
+}
+
+export function clearDraftFloorDocument(floorId: string): void {
+  try {
+    localStorage.removeItem(draftFloorDocKey(floorId));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Promote a draft SVG map to the live published slot for viewers. */
+export function promoteDraftFloorDocument(floorId: string): FloorDocumentV2 | null {
+  const draft = loadDraftFloorDocument(floorId);
+  if (!draft) return null;
+  savePublishedFloorDocument(draft, floorId);
+  clearDraftFloorDocument(floorId);
+  return draft;
+}
+
+export function listDraftFloorDocumentIds(): string[] {
+  const ids: string[] = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(DRAFT_FLOOR_DOC_PREFIX)) {
+        ids.push(key.slice(DRAFT_FLOOR_DOC_PREFIX.length));
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return ids;
+}
+
+function remapDocId(oldId: string, map: Map<string, string>, prefix: string): string {
+  const existing = map.get(oldId);
+  if (existing) return existing;
+  const next = `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+  map.set(oldId, next);
+  return next;
+}
+
+/**
+ * Independent SVG floor-document clone (new entity/zone IDs).
+ * Does not mutate the source document.
+ */
+export function cloneFloorDocument(
+  source: FloorDocumentV2,
+  opts: { name: string },
+): FloorDocumentV2 {
+  const entityMap = new Map<string, string>();
+  const zoneMap = new Map<string, string>();
+  const unusableMap = new Map<string, string>();
+
+  return {
+    ...source,
+    name: opts.name,
+    savedAt: new Date().toISOString(),
+    floor: { ...source.floor },
+    entities: source.entities.map((e) => ({
+      ...e,
+      objectId: remapDocId(e.objectId, entityMap, 'ent'),
+      origin: { ...e.origin },
+      outline: e.outline?.map((c) => ({ ...c })),
+    })),
+    zones: source.zones.map((z) => ({
+      ...z,
+      id: remapDocId(z.id, zoneMap, 'zone'),
+      origin: { ...z.origin },
+      outline: z.outline?.map((c) => ({ ...c })),
+    })),
+    unusableRegions: (source.unusableRegions || []).map((u) => ({
+      ...u,
+      id: remapDocId(u.id, unusableMap, 'unusable'),
+      origin: { ...u.origin },
+      outline: u.outline?.map((c) => ({ ...c })),
+    })),
+  };
+}
+
 export { DESKIT_PUBLISH_EVENT };

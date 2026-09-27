@@ -13,6 +13,8 @@ import { cn } from '../../lib/cn';
 
 interface FloorCreatorEmbedProps {
   className?: string;
+  floorId?: string;
+  officeId?: string;
   onPublished?: (doc: FloorDocumentV2) => void;
 }
 
@@ -20,8 +22,13 @@ interface FloorCreatorEmbedProps {
  * Embeds the Creator floor planner (creator/grid-ui on :5174) inside DeskIt Admin.
  * Never uses a same-origin relative URL — that recursively loads DeskIt itself.
  */
-export const FloorCreatorEmbed: React.FC<FloorCreatorEmbedProps> = ({ className, onPublished }) => {
-  const creatorUrl = getFloorCreatorUrl();
+export const FloorCreatorEmbed: React.FC<FloorCreatorEmbedProps> = ({
+  className,
+  floorId,
+  officeId,
+  onPublished,
+}) => {
+  const creatorUrl = getFloorCreatorUrl({ floorId, officeId });
   const sameOriginTrap = isCreatorUrlSameOriginAsDeskIt(creatorUrl);
   const [isLoading, setIsLoading] = useState(!sameOriginTrap);
   const [hasError, setHasError] = useState(sameOriginTrap);
@@ -57,7 +64,7 @@ export const FloorCreatorEmbed: React.FC<FloorCreatorEmbedProps> = ({ className,
 
       if (data.type === DESKIT_PUBLISH_EVENT && data.document) {
         const doc = data.document as FloorDocumentV2;
-        setPublishNotice('Floor map published — available for HR');
+        setPublishNotice('Published — live for Employee & HR (this floor)');
         onPublished?.(doc);
         window.setTimeout(() => setPublishNotice(null), 4000);
       }
@@ -67,7 +74,7 @@ export const FloorCreatorEmbed: React.FC<FloorCreatorEmbedProps> = ({ className,
       if (e.key !== 'deskit_published_floor_document_v2' || !e.newValue) return;
       try {
         const doc = JSON.parse(e.newValue) as FloorDocumentV2;
-        setPublishNotice('Floor map published — available for HR');
+        setPublishNotice('Published — live for Employee & HR (this floor)');
         onPublished?.(doc);
         window.setTimeout(() => setPublishNotice(null), 4000);
       } catch {
@@ -145,7 +152,7 @@ export const FloorCreatorEmbed: React.FC<FloorCreatorEmbedProps> = ({ className,
           )}
           <button
             type="button"
-            onClick={() => openInNewTab(LOCAL_CREATOR_URL)}
+            onClick={() => openInNewTab(creatorUrl)}
             className="ds-btn-ghost"
           >
             <ExternalLink className="w-3.5 h-3.5" />
@@ -153,7 +160,7 @@ export const FloorCreatorEmbed: React.FC<FloorCreatorEmbedProps> = ({ className,
           </button>
           <button
             type="button"
-            onClick={() => openInNewTab(LOCAL_CREATOR_URL)}
+            onClick={() => openInNewTab(creatorUrl)}
             className="ds-btn-primary"
           >
             <Maximize2 className="w-3.5 h-3.5" />
