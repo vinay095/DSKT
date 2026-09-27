@@ -6,6 +6,8 @@ import {
   maxLabelChars,
   truncateLabel,
 } from '../../geometry/labels';
+import type { ElementRenderState } from '../../lib/categoryStyles';
+import { FloorObjectRenderer } from './renderers';
 
 interface DeskNodeProps {
   desk: DeskElement;
@@ -35,32 +37,9 @@ export const DeskNode: React.FC<DeskNodeProps> = ({
   teamColor,
   showTeamIndicators = false,
 }) => {
-  const getStatusColor = () => {
-    switch (desk.status) {
-      case 'available':
-        return {
-          fill: 'fill-emerald-500/20 dark:fill-emerald-500/20',
-          stroke: 'stroke-emerald-500',
-        };
-      case 'occupied':
-        return {
-          fill: 'fill-brandBlue-500/20 dark:fill-brandPurple-500/20',
-          stroke: 'stroke-brandBlue-600 dark:stroke-brandPurple-500',
-        };
-      case 'reserved':
-        return {
-          fill: 'fill-amber-500/20 dark:fill-amber-500/20',
-          stroke: 'stroke-amber-500',
-        };
-      case 'maintenance':
-        return {
-          fill: 'fill-slate-400/20 dark:fill-slate-600/20',
-          stroke: 'stroke-slate-400 dark:stroke-slate-600',
-        };
-    }
-  };
-
-  const statusStyle = getStatusColor();
+  const renderState: ElementRenderState = isSelected
+    ? 'selected'
+    : desk.status;
   const width = gridSize * 1.8;
   const height = gridSize * 1.2;
   const showTeam = showTeamIndicators && Boolean(teamColor);
@@ -104,16 +83,15 @@ export const DeskNode: React.FC<DeskNodeProps> = ({
         />
       )}
 
-      <rect
-        x={0}
-        y={0}
-        width={width}
-        height={height}
-        rx={8}
-        className={`stroke-2 transition-all ${statusStyle.fill} ${statusStyle.stroke} ${
-          isSelected ? 'stroke-[3px]' : ''
-        } group-hover:opacity-90`}
-      />
+      <g className="transition-opacity group-hover:opacity-90">
+        <FloorObjectRenderer
+          width={width}
+          height={height}
+          category="workstation"
+          elementType="desk"
+          renderState={renderState}
+        />
+      </g>
 
       {showTeam && (
         <>
@@ -128,15 +106,6 @@ export const DeskNode: React.FC<DeskNodeProps> = ({
           />
         </>
       )}
-
-      <rect
-        x={width / 2 - 12}
-        y={height + 3}
-        width={24}
-        height={6}
-        rx={3}
-        className={`${statusStyle.stroke} fill-light-card dark:fill-dark-card stroke-2`}
-      />
 
       {desk.assignedUserName && (
         <circle

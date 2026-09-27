@@ -8,6 +8,7 @@ import {
   readableLabelTransform,
   truncateLabel,
 } from '../geometry/labels';
+import { FloorObjectRenderer } from './renderers';
 
 interface EntitiesLayerProps {
   entities: Entity[];
@@ -36,10 +37,12 @@ const EntitiesLayer: React.FC<EntitiesLayerProps> = ({
         const cx = bounds.x + bounds.width / 2;
         const cy = bounds.y + bounds.height / 2;
         const rot = e.rotation ?? 0;
+        const w = bounds.width;
+        const h = bounds.height;
 
         if (e.category === 'text') {
           const fontSize = (e.fontSize ?? 0.5) * a;
-          const label = truncateLabel(rawLabel || 'Text', maxLabelChars(bounds.width, fontSize));
+          const label = truncateLabel(rawLabel || 'Text', maxLabelChars(w, fontSize));
           return (
             <g
               key={e.objectId}
@@ -51,8 +54,8 @@ const EntitiesLayer: React.FC<EntitiesLayerProps> = ({
                 <rect
                   x={bounds.x}
                   y={bounds.y}
-                  width={bounds.width}
-                  height={bounds.height}
+                  width={w}
+                  height={h}
                   fill="none"
                   stroke="#22c55e"
                   strokeWidth={1}
@@ -90,17 +93,17 @@ const EntitiesLayer: React.FC<EntitiesLayerProps> = ({
                 }))
               : [
                   { x: bounds.x, y: bounds.y },
-                  { x: bounds.x + bounds.width, y: bounds.y },
-                  { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
-                  { x: bounds.x, y: bounds.y + bounds.height },
+                  { x: bounds.x + w, y: bounds.y },
+                  { x: bounds.x + w, y: bounds.y + h },
+                  { x: bounds.x, y: bounds.y + h },
                 ];
           const pts = outlinePts.map((p) => `${p.x},${p.y}`).join(' ');
-          const fontSize = adaptiveLabelFontSize(bounds.width, bounds.height, {
+          const fontSize = adaptiveLabelFontSize(w, h, {
             ratio: 0.2,
             min: f * 2,
             max: a * 0.4,
           });
-          const label = truncateLabel(rawLabel, maxLabelChars(bounds.width, fontSize));
+          const label = truncateLabel(rawLabel, maxLabelChars(w, fontSize));
           return (
             <g
               key={e.objectId}
@@ -136,12 +139,12 @@ const EntitiesLayer: React.FC<EntitiesLayerProps> = ({
           );
         }
 
-        const fontSize = adaptiveLabelFontSize(bounds.width, bounds.height, {
+        const fontSize = adaptiveLabelFontSize(w, h, {
           ratio: 0.28,
           min: f * 2,
           max: a * 0.45,
         });
-        const label = truncateLabel(rawLabel, maxLabelChars(bounds.width, fontSize));
+        const label = truncateLabel(rawLabel, maxLabelChars(w, fontSize));
 
         return (
           <g
@@ -150,17 +153,32 @@ const EntitiesLayer: React.FC<EntitiesLayerProps> = ({
             onMouseDown={(ev) => onEntityPointerDown?.(e.objectId, ev)}
             style={{ cursor: 'move' }}
           >
-            <rect
-              x={bounds.x}
-              y={bounds.y}
-              width={bounds.width}
-              height={bounds.height}
-              fill={color}
-              fillOpacity={selected ? 0.35 : 0.2}
-              stroke={selected ? '#22c55e' : color}
-              strokeWidth={selected ? 2 : 1.5}
-              vectorEffect="non-scaling-stroke"
-            />
+            {selected && (
+              <rect
+                x={bounds.x - 2}
+                y={bounds.y - 2}
+                width={w + 4}
+                height={h + 4}
+                fill="none"
+                stroke="#22c55e"
+                strokeWidth={1.5}
+                strokeDasharray="4 3"
+                vectorEffect="non-scaling-stroke"
+                pointerEvents="none"
+              />
+            )}
+            <g transform={`translate(${cx}, ${cy}) rotate(${rot}) translate(${-w / 2}, ${-h / 2})`}>
+              <FloorObjectRenderer
+                width={w}
+                height={h}
+                category={e.category}
+                elementType={e.elementType}
+                color={e.color}
+                renderState={selected ? 'selected' : 'default'}
+              />
+              {/* Hit target — keep placement/drag reliable over sparse vectors */}
+              <rect x={0} y={0} width={w} height={h} fill="transparent" />
+            </g>
             <g
               transform={readableLabelTransform(cx, cy, rot)}
               pointerEvents="none"

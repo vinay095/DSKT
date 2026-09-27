@@ -433,6 +433,7 @@ export const FloorPlanViewer: React.FC<FloorPlanViewerProps> = ({
       <PropertiesPanel
         selectedDesk={selectedDesk}
         role={user?.role}
+        desks={floorPlan.desks}
         onClose={() => setSelectedDesk(null)}
         onAssignClick={canAllocateSeat ? onAssignClick : undefined}
         floorContext={{

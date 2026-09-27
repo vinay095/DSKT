@@ -19,7 +19,8 @@ import {
   loadPublishedFloorDocument,
   savePublishedFloorDocument,
 } from '../../lib/publishedFloor';
-import { PublishedFloorMap } from '../floorplan/PublishedFloorMap';
+import { PublishedFloorMap, type MapElementSelection } from '../floorplan/PublishedFloorMap';
+import { PropertiesPanel } from '../floorplan/PropertiesPanel';
 import { DEFAULT_TAB } from '../../lib/permissions';
 
 const SIDEBAR_COLLAPSED_KEY = 'deskit_sidebar_collapsed';
@@ -68,6 +69,8 @@ export const Layout: React.FC = () => {
     loadPublishedFloorDocument(DEFAULT_FLOOR_ID),
   );
   const [publishedShowGrid, setPublishedShowGrid] = useState(true);
+  const [viewDesk, setViewDesk] = useState<DeskElement | null>(null);
+  const [viewMapElement, setViewMapElement] = useState<MapElementSelection | null>(null);
 
   const activeFloor = useMemo(
     () => getFloorById(activeFloorId, floors),
@@ -244,12 +247,13 @@ export const Layout: React.FC = () => {
             activeFloor={activeFloor}
             onGoToFloorMap={handleGoToFloorMap}
             onStartAssignFromPeople={handleStartAssignFromPeople}
+            onNavigateTab={handleTabChange}
           />
         );
       }
       if (publishedDoc) {
         return (
-          <div className="flex-1 min-h-[min(70vh,640px)] flex flex-col">
+          <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-[min(65vh,600px)]">
             <PublishedFloorMap
               document={publishedDoc}
               desks={currentFloorPlan.desks}
@@ -257,7 +261,36 @@ export const Layout: React.FC = () => {
               onToggleGrid={() => setPublishedShowGrid((v) => !v)}
               searchQuery={searchQuery}
               compactChrome
-              className="flex-1 min-h-[min(60vh,560px)]"
+              showHoverTooltip
+              onDeskClick={(desk) => {
+                setViewMapElement(null);
+                setViewDesk(desk);
+              }}
+              onEntityClick={(el) => {
+                setViewDesk(null);
+                setViewMapElement(el);
+              }}
+              onBackgroundClick={() => {
+                setViewDesk(null);
+                setViewMapElement(null);
+              }}
+              selectedDeskId={viewDesk?.id}
+              selectedEntityId={viewMapElement?.objectId}
+              className="flex-1 min-h-[min(55vh,520px)]"
+            />
+            <PropertiesPanel
+              selectedDesk={viewDesk}
+              selectedMapElement={viewMapElement}
+              desks={currentFloorPlan.desks}
+              floors={floors}
+              onClose={() => {
+                setViewDesk(null);
+                setViewMapElement(null);
+              }}
+              floorContext={{
+                building: activeOffice?.name || currentFloorPlan.building,
+                floorName: activeFloor?.shortLabel || currentFloorPlan.name,
+              }}
             />
           </div>
         );
@@ -286,6 +319,7 @@ export const Layout: React.FC = () => {
           activeFloor={activeFloor}
           onGoToFloorMap={handleGoToFloorMap}
           onStartAssignFromPeople={handleStartAssignFromPeople}
+          onNavigateTab={handleTabChange}
         />
       );
     }

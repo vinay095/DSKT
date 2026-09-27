@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import type { CatalogCategory, CustomLibraryEntry, LibraryItem } from '../types/geometry';
 import { assetUrl } from '../lib/catalog';
 import { groupCustomByCategory } from '../lib/library';
+import { FloorObjectRenderer, usesProceduralVisual } from './renderers';
 
 interface EntityLibraryProps {
   categories: CatalogCategory[];
@@ -36,7 +37,8 @@ const EntityLibrary: React.FC<EntityLibraryProps> = ({
   };
 
   const renderType = (item: LibraryItem) => {
-    const preview = assetUrl(item.svg);
+    const procedural = usesProceduralVisual(item.category, item.elementType);
+    const preview = !procedural ? assetUrl(item.svg) : null;
     return (
       <div
         key={item.id}
@@ -47,7 +49,24 @@ const EntityLibrary: React.FC<EntityLibraryProps> = ({
           className="library-item-main"
           onClick={() => onSelect(item)}
         >
-          {preview ? (
+          {procedural ? (
+            <svg
+              className="library-preview"
+              viewBox="0 0 40 32"
+              width={40}
+              height={32}
+              aria-hidden
+            >
+              <FloorObjectRenderer
+                width={40}
+                height={32}
+                category={item.category}
+                elementType={item.elementType}
+                color={item.color}
+                detail="simple"
+              />
+            </svg>
+          ) : preview ? (
             <img src={preview} alt="" className="library-preview" />
           ) : (
             <span className="library-swatch" style={{ background: item.color }} />

@@ -164,6 +164,8 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({
               selectedDesk={inspectedDesk}
               selectedMapElement={inspectedMapElement}
               role="employee"
+              desks={floorPlan.desks}
+              floors={floors}
               onClose={() => {
                 setInspectedDesk(null);
                 setInspectedMapElement(null);

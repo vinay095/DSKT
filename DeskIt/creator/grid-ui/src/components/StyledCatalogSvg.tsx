@@ -6,6 +6,7 @@ import {
   stylizeCatalogSvgMarkup,
   type ElementRenderState,
 } from '../lib/categoryStyles';
+import { FloorObjectRenderer, usesProceduralVisual } from './renderers';
 
 const urlCache = new Map<string, string>();
 
@@ -71,12 +72,12 @@ export function StyledCatalogSvg({
   renderState = 'default',
 }: StyledCatalogSvgProps) {
   const [href, setHref] = useState<string | null>(null);
-  const style = getCategoryStyle(category, elementType, entityColor, renderState);
   const source = svgMarkup || svgFile;
+  const procedural = usesProceduralVisual(category, elementType);
 
   useEffect(() => {
     let cancelled = false;
-    if (!source) {
+    if (procedural || !source) {
       setHref(null);
       return;
     }
@@ -86,20 +87,17 @@ export function StyledCatalogSvg({
     return () => {
       cancelled = true;
     };
-  }, [source, category, elementType, entityColor, renderState]);
+  }, [source, category, elementType, entityColor, renderState, procedural]);
 
-  if (!href) {
+  if (procedural || !href) {
     return (
-      <rect
-        x={0}
-        y={0}
+      <FloorObjectRenderer
         width={width}
         height={height}
-        rx={Math.min(width, height) * 0.08}
-        fill={style.fill}
-        fillOpacity={style.fillOpacity}
-        stroke={style.stroke}
-        strokeWidth={Math.max(width, height) * 0.015}
+        category={category}
+        elementType={elementType}
+        color={entityColor}
+        renderState={renderState}
       />
     );
   }

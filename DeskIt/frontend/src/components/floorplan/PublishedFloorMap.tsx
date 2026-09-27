@@ -22,6 +22,8 @@ import { getTeamColor } from '../../data/teams';
 import { ColorHierarchyLegend } from '../common/ColorHierarchyLegend';
 import { deskFromEntity, isAssignable } from '../../lib/publishedFloor';
 import type { FloorDocEntity } from '../../types/floorDocument';
+import { MapHoverTooltip } from './MapHoverTooltip';
+import { FloorObjectRenderer, usesProceduralVisual } from './renderers';
 
 const FINEST_PER_A = 16;
 const urlCache = new Map<string, string>();
@@ -85,11 +87,12 @@ const EntityImage: React.FC<{
   renderState?: ElementRenderState;
 }> = ({ svg, category, elementType, color, w, h, renderState = 'default' }) => {
   const [href, setHref] = useState<string | null>(null);
-  const style = getCategoryStyle(category, elementType, color, renderState);
+  const procedural = usesProceduralVisual(category, elementType);
 
   useEffect(() => {
     let cancelled = false;
-    if (!svg) {
+    // Known furniture types: procedural architectural vectors (not catalog stickers).
+    if (procedural || !svg) {
       setHref(null);
       return;
     }
@@ -99,20 +102,17 @@ const EntityImage: React.FC<{
     return () => {
       cancelled = true;
     };
-  }, [svg, category, elementType, color, renderState]);
+  }, [svg, category, elementType, color, renderState, procedural]);
 
-  if (!href) {
+  if (procedural || !href) {
     return (
-      <rect
-        x={0}
-        y={0}
+      <FloorObjectRenderer
         width={w}
         height={h}
-        rx={Math.min(w, h) * 0.08}
-        fill={style.fill}
-        fillOpacity={style.fillOpacity}
-        stroke={style.stroke}
-        strokeWidth={style.strokeWidth * 0.4}
+        category={category}
+        elementType={elementType}
+        color={color}
+        renderState={renderState}
       />
     );
   }
@@ -146,6 +146,8 @@ interface PublishedFloorMapProps {
   selectedEntityId?: string | null;
   /** Fired when a non-desk floor element is clicked. */
   onEntityClick?: (entity: MapElementSelection) => void;
+  /** Lightweight hover tip on seats (default on when desks are interactive). */
+  showHoverTooltip?: boolean;
 }
 
 /**
@@ -167,6 +169,7 @@ export const PublishedFloorMap: React.FC<PublishedFloorMapProps> = ({
   showMapLabels = false,
   selectedEntityId = null,
   onEntityClick,
+  showHoverTooltip,
 }) => {
   const a = doc.a || 1;
   const f = a / FINEST_PER_A;
@@ -177,6 +180,12 @@ export const PublishedFloorMap: React.FC<PublishedFloorMapProps> = ({
   const [size, setSize] = useState({ w: 800, h: 560 });
   const [cam, setCam] = useState({ zoom: 1, panX: 0, panY: 0 });
   const dragRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
+  const [hoverTip, setHoverTip] = useState<{
+    desk: DeskElement;
+    x: number;
+    y: number;
+  } | null>(null);
+  const hoverEnabled = showHoverTooltip ?? Boolean(onDeskClick);
 
   const deskById = useMemo(() => {
     const m = new Map<string, DeskElement>();
@@ -196,6 +205,7 @@ export const PublishedFloorMap: React.FC<PublishedFloorMapProps> = ({
 
   const handleEntityActivate = (e: FloorDocEntity, ev: React.MouseEvent) => {
     ev.stopPropagation();
+    setHoverTip(null);
     const desk = resolveDesk(e);
     if (desk && onDeskClick) {
       onDeskClick(desk);
@@ -211,6 +221,36 @@ export const PublishedFloorMap: React.FC<PublishedFloorMapProps> = ({
       heightCells: e.heightCells,
     });
   };
+
+  const handleDeskHover = (e: FloorDocEntity, ev: React.MouseEvent) => {
+    if (!hoverEnabled || dragRef.current) {
+      setHoverTip(null);
+      return;
+    }
+    const desk = resolveDesk(e);
+    if (!desk) {
+      setHoverTip(null);
+      return;
+    }
+    const rect = wrapRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setHoverTip({
+      desk,
+      x: ev.clientX - rect.left,
+      y: ev.clientY - rect.top,
+    });
+  };
+
+  const clearHover = () => setHoverTip(null);
+
+  const deskHoverHandlers = (e: FloorDocEntity) =>
+    hoverEnabled
+      ? {
+          onMouseEnter: (ev: React.MouseEvent) => handleDeskHover(e, ev),
+          onMouseMove: (ev: React.MouseEvent) => handleDeskHover(e, ev),
+          onMouseLeave: clearHover,
+        }
+      : {};
 
   const fitToSize = (w: number, h: number) => {
     if (w < 10 || h < 10 || worldW <= 0 || worldH <= 0) return;
@@ -343,6 +383,7 @@ export const PublishedFloorMap: React.FC<PublishedFloorMapProps> = ({
         className="flex-1 relative overflow-hidden cursor-grab active:cursor-grabbing bg-slate-100 dark:bg-dark-bg min-h-[min(50vh,480px)]"
         onMouseDown={(e) => {
           if (e.button !== 0) return;
+          clearHover();
           if (e.target === e.currentTarget || (e.target as Element).tagName === 'svg') {
             onBackgroundClick?.();
           }
@@ -358,8 +399,10 @@ export const PublishedFloorMap: React.FC<PublishedFloorMapProps> = ({
         }}
         onMouseLeave={() => {
           dragRef.current = null;
+          clearHover();
         }}
       >
+        {hoverTip && <MapHoverTooltip desk={hoverTip.desk} x={hoverTip.x} y={hoverTip.y} />}
         <svg width={size.w} height={size.h} className="w-full h-full select-none">
           <defs>
             <filter id="deskit-pop-shadow" x="-40%" y="-40%" width="180%" height="180%">
@@ -520,6 +563,7 @@ export const PublishedFloorMap: React.FC<PublishedFloorMapProps> = ({
                         }
                         onClick={(ev) => handleEntityActivate(e, ev)}
                         style={{ filter: popFilter }}
+                        {...deskHoverHandlers(e)}
                       >
                         <g
                           transform={`translate(${pathCx}, ${pathCy}) scale(${popScale}) translate(${-pathCx}, ${-pathCy})`}
@@ -576,6 +620,7 @@ export const PublishedFloorMap: React.FC<PublishedFloorMapProps> = ({
                       }
                       onClick={(ev) => handleEntityActivate(e, ev)}
                       style={{ filter: popFilter }}
+                      {...deskHoverHandlers(e)}
                     >
                       {e.svg ? (
                         <EntityImage

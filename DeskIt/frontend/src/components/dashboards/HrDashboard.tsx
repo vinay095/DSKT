@@ -5,10 +5,20 @@ import { SeatAssignmentRequest } from '../../types/seating';
 import { FloorPlanViewer } from '../floorplan/FloorPlanViewer';
 import { PublishedFloorMap, MapElementSelection } from '../floorplan/PublishedFloorMap';
 import { PropertiesPanel } from '../floorplan/PropertiesPanel';
-import { SeatAssignModal, SeatAssignmentDetails } from '../floorplan/SeatAssignModal';
+import { SeatAssignModal } from '../floorplan/SeatAssignModal';
+import {
+  AllocationPanel,
+  type AllocationFocus,
+} from '../floorplan/AllocationPanel';
 import { DEPARTMENTS, MOCK_REQUESTS } from '../../data/mockData';
 import { saveSeatAssignment } from '../../lib/supabaseClient';
 import { saveFloorChangeRequest } from '../../lib/floorChangeRequests';
+import {
+  applySeatAssignment,
+  clearSeatAssignment,
+  findDesk,
+  type SeatAssignmentDetails,
+} from '../../lib/seatAssignment';
 import { StatCard } from '../common/StatCard';
 import { useAuth } from '../../context/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -38,6 +48,7 @@ interface HrDashboardProps {
   activeFloor?: FloorOption;
   onGoToFloorMap?: (args: GoToFloorMapArgs) => void;
   onStartAssignFromPeople?: (employeeName: string) => void;
+  onNavigateTab?: (tab: string) => void;
 }
 
 export const HrDashboard: React.FC<HrDashboardProps> = ({
@@ -50,6 +61,7 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
   activeFloor,
   onGoToFloorMap,
   onStartAssignFromPeople,
+  onNavigateTab,
 }) => {
   const { user } = useAuth();
   const {
@@ -68,6 +80,12 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
   const [changeElement, setChangeElement] = useState('');
   const [changeDetails, setChangeDetails] = useState('');
   const [changeMsg, setChangeMsg] = useState<string | null>(null);
+  const [allocationFocus, setAllocationFocus] = useState<AllocationFocus | null>(null);
+  const [assignPrefill, setAssignPrefill] = useState<{
+    employeeId?: string;
+    employeeName?: string;
+    notes?: string;
+  } | null>(null);
 
   // Keep inspector in sync with live desk assignment state (without removing model data).
   useEffect(() => {
@@ -75,6 +93,15 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
     const latest = floorPlan.desks.find((d) => d.id === inspectedDesk.id) ?? null;
     setInspectedDesk(latest);
   }, [floorPlan.desks, inspectedDesk?.id]);
+
+  // People → Seat Allocation: seed employee-first panel from header search.
+  useEffect(() => {
+    if (activeTab !== 'assignments' || !searchQuery.trim()) return;
+    setAllocationFocus((prev) => {
+      if (prev?.source === 'request') return prev;
+      return { employeeName: searchQuery.trim(), source: 'people' };
+    });
+  }, [activeTab, searchQuery]);
 
   const totalDesks = floorPlan.desks.length;
   const occupiedDesks = floorPlan.desks.filter((d) => d.status === 'occupied').length;
@@ -84,73 +111,89 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
   const handleApproveRequest = (reqId: string) => {
     if (!guard('canApproveSeatRequest', 'approve seat request')) return;
     setRequests((prev) =>
-      prev.map((r) => (r.id === reqId ? { ...r, status: 'approved' } : r))
+      prev.map((r) => (r.id === reqId ? { ...r, status: 'approved' } : r)),
     );
   };
 
   const handleRejectRequest = (reqId: string) => {
     if (!guard('canApproveSeatRequest', 'reject seat request')) return;
     setRequests((prev) =>
-      prev.map((r) => (r.id === reqId ? { ...r, status: 'rejected' } : r))
+      prev.map((r) => (r.id === reqId ? { ...r, status: 'rejected' } : r)),
     );
   };
 
-  const handleAssignUserToDesk = (deskId: string, targetUser: User, details?: SeatAssignmentDetails) => {
-    if (!guard('canAllocateSeat', 'assign employee to desk')) return;
-    const targetDesk = floorPlan.desks.find((d) => d.id === deskId) || inspectedDesk;
-    if (targetDesk && targetDesk.id === deskId) {
-      const updated: DeskElement = {
-        ...targetDesk,
-        status: 'occupied',
-        assignedUserId: targetUser.id,
-        assignedUserName: targetUser.name,
-        department: targetUser.department,
-        team: targetUser.team,
-        assignedUserStatus: details?.assignedUserStatus || 'green',
-        isTemporary: details?.isTemporary ?? false,
-        startDate: details?.startDate,
-        endDate: details?.endDate,
-        notes: details?.notes,
-      };
-      onUpdateDesk(updated);
-      setInspectedDesk(updated);
-      setSelectedDeskForAssign(null);
-
-      void saveSeatAssignment({
-        floor_map_id: floorPlan.id,
-        desk_code: targetDesk.code,
-        emp_id: targetUser.id,
-        assignment_type: details?.isTemporary ? 'temporary' : 'permanent',
-        is_temporary: details?.isTemporary ?? false,
-        start_date: details?.startDate,
-        end_date: details?.endDate,
-        notes: details?.notes,
-        status: 'active',
-      });
+  /** Continue into allocation for a request (optionally approving first). */
+  const handleContinueAllocation = (
+    req: SeatAssignmentRequest,
+    options?: { approveFirst?: boolean },
+  ) => {
+    if (options?.approveFirst) {
+      if (!guard('canApproveSeatRequest', 'approve and allocate')) return;
+      setRequests((prev) =>
+        prev.map((r) => (r.id === req.id ? { ...r, status: 'approved' } : r)),
+      );
+    } else if (!guard('canAllocateSeat', 'continue allocation')) {
+      return;
     }
+
+    const preferred = findDesk(floorPlan.desks, req.requestedDeskId);
+    setAllocationFocus({
+      employeeId: req.userId,
+      employeeName: req.userName,
+      preferredDeskId: preferred?.id,
+      requestNotes: req.notes,
+      source: 'request',
+    });
+    setAssignPrefill({
+      employeeId: req.userId,
+      employeeName: req.userName,
+      notes: req.notes,
+    });
+    if (preferred) {
+      setInspectedDesk(preferred);
+      setSelectedDeskForAssign(preferred);
+    } else {
+      setSelectedDeskForAssign(null);
+    }
+    onNavigateTab?.('assignments');
+  };
+
+  const handleAssignUserToDesk = (
+    deskId: string,
+    targetUser: User,
+    details?: SeatAssignmentDetails,
+  ) => {
+    if (!guard('canAllocateSeat', 'assign employee to desk')) return;
+    const targetDesk = findDesk(floorPlan.desks, deskId) || inspectedDesk;
+    if (!targetDesk || targetDesk.id !== deskId) return;
+
+    // Multi-seat safe: only mutates this desk; other assignments stay.
+    const updated = applySeatAssignment(targetDesk, targetUser, details);
+    onUpdateDesk(updated);
+    setInspectedDesk(updated);
+    setSelectedDeskForAssign(null);
+    setAssignPrefill(null);
+
+    void saveSeatAssignment({
+      floor_map_id: floorPlan.id,
+      desk_code: targetDesk.code,
+      emp_id: targetUser.id,
+      assignment_type: details?.isTemporary ? 'temporary' : 'permanent',
+      is_temporary: details?.isTemporary ?? false,
+      start_date: details?.startDate,
+      end_date: details?.endDate,
+      notes: details?.notes,
+      status: 'active',
+    });
   };
 
   const handleUnassignDesk = (deskId: string) => {
     if (!guard('canAllocateSeat', 'unassign desk')) return;
-    const targetDesk = floorPlan.desks.find((d) => d.id === deskId);
-    if (targetDesk) {
-      const updated: DeskElement = {
-        ...targetDesk,
-        status: 'available',
-        assignedUserId: undefined,
-        assignedUserName: undefined,
-        assignedUserAvatar: undefined,
-        assignedUserStatus: undefined,
-        department: undefined,
-        team: undefined,
-        isTemporary: undefined,
-        startDate: undefined,
-        endDate: undefined,
-        notes: undefined,
-      };
-      onUpdateDesk(updated);
-      setInspectedDesk(updated);
-    }
+    const targetDesk = findDesk(floorPlan.desks, deskId);
+    if (!targetDesk) return;
+    const updated = clearSeatAssignment(targetDesk);
+    onUpdateDesk(updated);
+    setInspectedDesk(updated);
   };
 
   const metricsSection = (
@@ -216,7 +259,10 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
                   </span>
                 </div>
                 <p className="text-[11px] text-light-muted dark:text-dark-muted">
-                  {req.department} • Requesting Desk {req.requestedDeskId}
+                  {req.department} · Requested{' '}
+                  {findDesk(floorPlan.desks, req.requestedDeskId)?.code ||
+                    req.requestedDeskId ||
+                    'any seat'}
                 </p>
                 {req.notes && (
                   <p className="text-xs text-light-text dark:text-dark-text bg-white dark:bg-dark-card p-2 rounded-lg mt-2 border border-light-border dark:border-dark-border">
@@ -231,7 +277,7 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
                 Status: {req.status}
               </span>
               {req.status === 'pending' && canApproveSeatRequest ? (
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2 justify-end">
                   <button
                     type="button"
                     onClick={() => handleRejectRequest(req.id)}
@@ -242,13 +288,28 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
                   <button
                     type="button"
                     onClick={() => handleApproveRequest(req.id)}
+                    className="px-3 py-1 rounded-lg border border-border bg-surface text-content-primary font-bold text-xs hover:bg-surface-muted transition"
+                  >
+                    Approve only
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleContinueAllocation(req, { approveFirst: true })}
                     className="px-3.5 py-1 rounded-lg bg-accent hover:bg-accent-hover text-accent-foreground font-bold text-xs transition shadow"
                   >
-                    Approve Seat
+                    Approve & allocate
                   </button>
                 </div>
               ) : req.status === 'pending' ? (
                 <span className="text-xs text-content-secondary">View only</span>
+              ) : req.status === 'approved' && canAllocateSeat ? (
+                <button
+                  type="button"
+                  onClick={() => handleContinueAllocation(req)}
+                  className="px-3 py-1 rounded-lg bg-accent text-accent-foreground font-bold text-xs"
+                >
+                  Continue allocation
+                </button>
               ) : (
                 <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                   Processed
@@ -309,10 +370,20 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
             selectedDesk={inspectedDesk}
             selectedMapElement={inspectedMapElement}
             role="hr"
+            desks={floorPlan.desks}
+            floors={floors}
             onClose={clearInspector}
             onAssignClick={
               canAllocateSeat ? (desk) => setSelectedDeskForAssign(desk) : undefined
             }
+            onViewTeam={(team) => {
+              onStartAssignFromPeople?.(team);
+              onNavigateTab?.('people');
+            }}
+            onGoToEmployee={(name) => {
+              onStartAssignFromPeople?.(name);
+              onNavigateTab?.('people');
+            }}
             floorContext={{
               building: floorPlan.building,
               floorName: floorPlan.name,
@@ -365,10 +436,20 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
             selectedDesk={inspectedDesk}
             selectedMapElement={inspectedMapElement}
             role="hr"
+            desks={floorPlan.desks}
+            floors={floors}
             onClose={clearInspector}
             onAssignClick={
               canAllocateSeat ? (desk) => setSelectedDeskForAssign(desk) : undefined
             }
+            onViewTeam={(team) => {
+              onStartAssignFromPeople?.(team);
+              onNavigateTab?.('people');
+            }}
+            onGoToEmployee={(name) => {
+              onStartAssignFromPeople?.(name);
+              onNavigateTab?.('people');
+            }}
             floorContext={{
               building: floorPlan.building,
               floorName: floorPlan.name,
@@ -475,9 +556,19 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
   const seatModal = canAllocateSeat ? (
     <SeatAssignModal
       desk={selectedDeskForAssign}
-      onClose={() => setSelectedDeskForAssign(null)}
+      onClose={() => {
+        setSelectedDeskForAssign(null);
+        setAssignPrefill(null);
+      }}
       onAssign={handleAssignUserToDesk}
       onUnassign={handleUnassignDesk}
+      preselectedEmployeeId={assignPrefill?.employeeId}
+      preselectedEmployeeName={assignPrefill?.employeeName}
+      requestNotes={assignPrefill?.notes}
+      floorContext={{
+        building: floorPlan.building,
+        floorName: floorPlan.name,
+      }}
     />
   ) : null;
 
@@ -511,12 +602,34 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
 
   if (activeTab === 'assignments') {
     return (
-      <div className="space-y-8 pb-8">
+      <div className="space-y-6 pb-8">
         <PageHeader
-          title="Seat Allocations"
-          description="Click a seat or floor element for details. Assign from the inspector. Request layout changes in the section below."
+          title="Seat Allocation"
+          description="Employee-first: search a person and pick a free seat. Seat-first: click a desk on the map → Assign in the inspector. Both update the same floor assignment state."
         />
-        {allocationMapSection}
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+          <div className="xl:col-span-1">
+            <AllocationPanel
+              desks={floorPlan.desks}
+              floorName={floorPlan.name}
+              building={floorPlan.building}
+              focus={allocationFocus}
+              searchQuery={searchQuery}
+              onAssign={handleAssignUserToDesk}
+              onSelectDeskOnMap={(desk) => {
+                setInspectedDesk(desk);
+                setInspectedMapElement(null);
+              }}
+              onClearFocus={() => setAllocationFocus(null)}
+            />
+          </div>
+          <div className="xl:col-span-2 space-y-3">
+            <p className="text-[11px] text-content-secondary">
+              Seat-first: select a desk on the map, then use Assign / Reassign in the inspector.
+            </p>
+            {allocationMapSection}
+          </div>
+        </div>
         {canSubmitFloorChangeRequest && changeRequestSection}
         {seatModal}
       </div>

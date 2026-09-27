@@ -281,7 +281,7 @@ export const MOCK_REQUESTS: SeatAssignmentRequest[] = [
     userName: 'Priya Sharma',
     userAvatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&auto=format&fit=crop&q=80',
     department: 'Marketing',
-    requestedDeskId: 'desk-105',
+    requestedDeskId: 'desk-202',
     status: 'pending',
     requestDate: '2026-09-21',
     notes: 'Needs standing desk near Engineering team for cross-functional project.'
@@ -292,7 +292,7 @@ export const MOCK_REQUESTS: SeatAssignmentRequest[] = [
     userName: 'Lucas Thorne',
     userAvatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80',
     department: 'Engineering',
-    requestedDeskId: 'desk-106',
+    requestedDeskId: 'desk-204',
     status: 'pending',
     requestDate: '2026-09-22',
     notes: 'DevOps lead requiring dual monitor setup desk in Zone A.'
