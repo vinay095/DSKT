@@ -90,6 +90,7 @@ export type AppTabId =
   | 'dashboard'
   | 'floorplan'
   | 'teammates'
+  | 'people'
   | 'assignments'
   | 'requests'
   | 'editor'
@@ -98,7 +99,7 @@ export type AppTabId =
 
 const TAB_ACCESS: Record<UserRole, readonly AppTabId[]> = {
   employee: ['dashboard', 'floorplan', 'teammates'],
-  hr: ['dashboard', 'assignments', 'floorplan', 'requests'],
+  hr: ['dashboard', 'people', 'assignments', 'floorplan', 'requests'],
   admin: ['dashboard', 'editor', 'drafts', 'change-requests', 'floorplan'],
 };
 

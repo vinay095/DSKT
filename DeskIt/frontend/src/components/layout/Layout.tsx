@@ -28,6 +28,7 @@ const PAGE_LABELS: Record<string, string> = {
   dashboard: 'Overview',
   floorplan: 'Floor Maps',
   teammates: 'Find People',
+  people: 'People & Teams',
   assignments: 'Seat Allocation',
   requests: 'Seat Requests',
   editor: 'Floor Plan Editor',
@@ -189,6 +190,33 @@ export const Layout: React.FC = () => {
     setFloors(getAllFloors());
   };
 
+  /** Navigate to a floor map from people/team discovery. */
+  const handleGoToFloorMap = (args: {
+    floorId?: string;
+    locationLabel?: string;
+    employeeName?: string;
+  }) => {
+    if (args.floorId) {
+      applyFloorContext(args.floorId);
+    } else if (args.locationLabel) {
+      const match = floors.find((f) => f.locationLabel === args.locationLabel);
+      if (match) applyFloorContext(match.id, match.officeId);
+    }
+    if (args.employeeName) {
+      setSearchQuery(args.employeeName);
+    }
+    if (canAccessTab('floorplan')) {
+      setActiveTab('floorplan');
+    }
+  };
+
+  const handleStartAssignFromPeople = (employeeName: string) => {
+    setSearchQuery(employeeName);
+    if (canAccessTab('assignments')) {
+      setActiveTab('assignments');
+    }
+  };
+
   const mainClassName =
     canEditFloorPlan && activeTab === 'editor'
       ? 'min-h-0 overflow-hidden p-3 sm:p-4 flex flex-col'
@@ -212,6 +240,10 @@ export const Layout: React.FC = () => {
             onUpdateDesk={handleUpdateDesk}
             activeTab="floorplan"
             publishedDocument={publishedDoc}
+            floors={floors}
+            activeFloor={activeFloor}
+            onGoToFloorMap={handleGoToFloorMap}
+            onStartAssignFromPeople={handleStartAssignFromPeople}
           />
         );
       }
@@ -250,6 +282,10 @@ export const Layout: React.FC = () => {
           onUpdateDesk={handleUpdateDesk}
           activeTab={activeTab}
           publishedDocument={publishedDoc}
+          floors={floors}
+          activeFloor={activeFloor}
+          onGoToFloorMap={handleGoToFloorMap}
+          onStartAssignFromPeople={handleStartAssignFromPeople}
         />
       );
     }
@@ -280,6 +316,7 @@ export const Layout: React.FC = () => {
         activeOffice={activeOffice}
         floors={floors}
         publishedDocument={publishedDoc}
+        onGoToFloorMap={handleGoToFloorMap}
       />
     );
   };

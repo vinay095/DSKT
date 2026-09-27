@@ -23,6 +23,10 @@ import {
 } from 'lucide-react';
 import { ColorHierarchyLegend } from '../common/ColorHierarchyLegend';
 import { PageHeader } from '../common/PageHeader';
+import { PeopleTeams } from '../people/PeopleTeams';
+import type { GoToFloorMapArgs } from '../people/EmployeeDrawer';
+import type { FloorOption } from '../../types/office';
+import type { DbEmployee } from '../../types/database';
 
 interface HrDashboardProps {
   floorPlan: FloorPlan;
@@ -30,6 +34,10 @@ interface HrDashboardProps {
   onUpdateDesk: (updatedDesk: DeskElement) => void;
   activeTab?: string;
   publishedDocument?: FloorDocumentV2 | null;
+  floors?: FloorOption[];
+  activeFloor?: FloorOption;
+  onGoToFloorMap?: (args: GoToFloorMapArgs) => void;
+  onStartAssignFromPeople?: (employeeName: string) => void;
 }
 
 export const HrDashboard: React.FC<HrDashboardProps> = ({
@@ -38,6 +46,10 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
   onUpdateDesk,
   activeTab = 'dashboard',
   publishedDocument = null,
+  floors = [],
+  activeFloor,
+  onGoToFloorMap,
+  onStartAssignFromPeople,
 }) => {
   const { user } = useAuth();
   const {
@@ -472,6 +484,19 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
   if (!canAccessHrTools) {
     return (
       <AccessDenied description="HR tools require the HR role. Switch demo role from the header to continue." />
+    );
+  }
+
+  if (activeTab === 'people') {
+    return (
+      <PeopleTeams
+        searchQuery={searchQuery}
+        floors={floors}
+        currentFloorDesks={floorPlan.desks}
+        currentFloor={activeFloor}
+        onGoToFloorMap={onGoToFloorMap}
+        onStartAssign={(emp: DbEmployee) => onStartAssignFromPeople?.(emp.name)}
+      />
     );
   }
 

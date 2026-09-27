@@ -22,6 +22,7 @@ const ALL_NAV_ITEMS: Record<AppTabId, NavItem> = {
   dashboard: { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
   floorplan: { id: 'floorplan', label: 'Floor Maps', icon: Map },
   teammates: { id: 'teammates', label: 'Find People', icon: Users },
+  people: { id: 'people', label: 'People & Teams', icon: Users },
   assignments: { id: 'assignments', label: 'Seat Allocation', icon: UserCheck },
   requests: { id: 'requests', label: 'Seat Requests', icon: UserPlus },
   editor: { id: 'editor', label: 'Floor Plan Editor', icon: Edit3 },
@@ -38,6 +39,7 @@ const LABEL_OVERRIDES: Partial<Record<UserRole, Partial<Record<AppTabId, string>
   },
   hr: {
     dashboard: 'HR Overview',
+    people: 'People & Teams',
     assignments: 'Seat Allocation',
     floorplan: 'Floor Maps',
     requests: 'Seat Requests',
