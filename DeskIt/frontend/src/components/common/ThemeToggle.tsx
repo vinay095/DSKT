@@ -1,6 +1,7 @@
 import React from 'react';
 import { Sun, Moon } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
+import { cn } from '../../lib/cn';
 
 export const ThemeToggle: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
@@ -8,28 +9,26 @@ export const ThemeToggle: React.FC = () => {
 
   return (
     <button
+      type="button"
       onClick={toggleTheme}
-      className={`relative inline-flex h-9 w-16 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-        isDark 
-          ? 'bg-dark-card border-brandPurple-600/50 focus:ring-brandPurple-500' 
-          : 'bg-slate-200 border-brandBlue-300 focus:ring-brandBlue-500'
-      }`}
-      title={isDark ? "Switch to Light Mode (White & Blue)" : "Switch to Dark Mode (Black & Purple)"}
-      aria-label="Toggle Dark/Light Mode"
+      className={cn(
+        'relative inline-flex h-8 w-14 flex-shrink-0 cursor-pointer rounded-full border transition-colors duration-200',
+        'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50',
+        isDark ? 'bg-surface-muted border-border' : 'bg-surface-muted border-border',
+      )}
+      title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+      aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+      aria-pressed={isDark}
     >
       <span className="sr-only">Toggle theme</span>
       <span
-        className={`pointer-events-none relative inline-block h-8 w-8 transform rounded-full shadow-md transition duration-300 ease-in-out flex items-center justify-center ${
-          isDark 
-            ? 'translate-x-7 bg-brandPurple-600 text-white' 
-            : 'translate-x-0 bg-white text-brandBlue-600'
-        }`}
-      >
-        {isDark ? (
-          <Moon className="h-4 w-4 animate-pulse text-brandPurple-200" />
-        ) : (
-          <Sun className="h-4 w-4 text-amber-500" />
+        className={cn(
+          'pointer-events-none absolute top-0.5 left-0.5 flex h-7 w-7 items-center justify-center rounded-full shadow-sm transition duration-200',
+          'bg-surface text-accent',
+          isDark && 'translate-x-6',
         )}
+      >
+        {isDark ? <Moon className="h-3.5 w-3.5" aria-hidden /> : <Sun className="h-3.5 w-3.5" aria-hidden />}
       </span>
     </button>
   );

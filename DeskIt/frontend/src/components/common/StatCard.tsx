@@ -1,5 +1,6 @@
 import React from 'react';
 import { LucideIcon } from 'lucide-react';
+import { cn } from '../../lib/cn';
 
 interface StatCardProps {
   title: string;
@@ -13,6 +14,13 @@ interface StatCardProps {
   colorScheme?: 'blue' | 'purple' | 'emerald' | 'amber';
 }
 
+const schemeClass: Record<NonNullable<StatCardProps['colorScheme']>, string> = {
+  blue: 'bg-accent-muted text-accent border-accent/25',
+  purple: 'bg-accent-muted text-accent border-accent/25',
+  emerald: 'bg-success-muted text-success border-success/25',
+  amber: 'bg-warning-muted text-warning border-warning/25',
+};
+
 export const StatCard: React.FC<StatCardProps> = ({
   title,
   value,
@@ -21,42 +29,34 @@ export const StatCard: React.FC<StatCardProps> = ({
   trend,
   colorScheme = 'blue',
 }) => {
-  const getColorClasses = () => {
-    switch (colorScheme) {
-      case 'blue':
-        return 'bg-brandBlue-50 dark:bg-brandBlue-900/20 text-brandBlue-600 dark:text-brandBlue-400 border-brandBlue-200 dark:border-brandBlue-800/40';
-      case 'purple':
-        return 'bg-brandPurple-50 dark:bg-brandPurple-900/20 text-brandPurple-600 dark:text-brandPurple-400 border-brandPurple-200 dark:border-brandPurple-800/40';
-      case 'emerald':
-        return 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/40';
-      case 'amber':
-        return 'bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800/40';
-    }
-  };
-
   return (
-    <div className="bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-xl p-5 shadow-sm hover:shadow-md transition-all">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-light-muted dark:text-dark-muted">
+    <div className="ds-panel p-5 hover:shadow-md transition-shadow">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-content-secondary">
             {title}
           </p>
-          <h3 className="text-2xl font-bold mt-1 text-light-text dark:text-dark-text">
+          <h3 className="text-2xl font-bold mt-1 text-content-primary tracking-tight">
             {value}
           </h3>
           {subtitle && (
-            <p className="text-xs mt-1 text-light-muted dark:text-dark-muted">
+            <p className="text-xs mt-1 text-content-secondary truncate">
               {subtitle}
             </p>
           )}
           {trend && (
-            <p className={`text-xs mt-2 font-medium ${trend.isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+            <p
+              className={cn(
+                'text-xs mt-2 font-medium',
+                trend.isPositive ? 'text-success' : 'text-danger',
+              )}
+            >
               {trend.isPositive ? '↑' : '↓'} {trend.value}
             </p>
           )}
         </div>
-        <div className={`p-3.5 rounded-xl border ${getColorClasses()}`}>
-          <Icon className="w-6 h-6" />
+        <div className={cn('p-3 rounded-md border shrink-0', schemeClass[colorScheme])}>
+          <Icon className="w-5 h-5" aria-hidden />
         </div>
       </div>
     </div>

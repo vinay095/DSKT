@@ -10,6 +10,10 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
+/**
+ * Application theme preference (light/dark).
+ * Not tied to role — Employee/HR/Admin share the same design system.
+ */
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<Theme>(() => {
     const saved = localStorage.getItem('deskit_theme');
@@ -21,6 +25,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const root = document.documentElement;
     root.classList.remove('light', 'dark');
     root.classList.add(theme);
+    root.dataset.theme = theme;
     localStorage.setItem('deskit_theme', theme);
   }, [theme]);
 

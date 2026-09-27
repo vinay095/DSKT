@@ -10,7 +10,7 @@ interface PageHeaderProps {
 
 /**
  * Shared page title + short description.
- * Does NOT show office/floor — Navbar is the source of truth for that context.
+ * Office/floor context stays in the Navbar.
  */
 export const PageHeader: React.FC<PageHeaderProps> = ({
   title,
@@ -26,11 +26,11 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
       )}
     >
       <div className="min-w-0">
-        <h2 className="text-xl font-extrabold text-light-text dark:text-dark-text tracking-tight">
+        <h2 className="text-xl font-bold text-content-primary tracking-tight">
           {title}
         </h2>
         {description && (
-          <p className="text-xs text-light-muted dark:text-dark-muted mt-0.5 max-w-2xl">
+          <p className="text-xs text-content-secondary mt-0.5 max-w-2xl">
             {description}
           </p>
         )}

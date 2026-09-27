@@ -1,45 +1,53 @@
 import React from 'react';
 import { UserRole } from '../../types/auth';
 import { User, ShieldCheck, Settings } from 'lucide-react';
+import { cn } from '../../lib/cn';
 
 interface RoleBadgeProps {
   role: UserRole;
   showIcon?: boolean;
+  /** Smaller badge for dense header controls */
+  compact?: boolean;
 }
 
-export const RoleBadge: React.FC<RoleBadgeProps> = ({ role, showIcon = true }) => {
-  const getBadgeStyle = () => {
-    switch (role) {
-      case 'employee':
-        return {
-          bg: 'bg-brandBlue-50 dark:bg-brandBlue-900/30 text-brandBlue-700 dark:text-brandBlue-300 border-brandBlue-200 dark:border-brandBlue-700/50',
-          label: 'Employee Access',
-          icon: User,
-        };
-      case 'hr':
-        return {
-          bg: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/50',
-          label: 'HR Manager Access',
-          icon: ShieldCheck,
-        };
-      case 'admin':
-        return {
-          bg: 'bg-brandPurple-50 dark:bg-brandPurple-900/40 text-brandPurple-700 dark:text-brandPurple-300 border-brandPurple-200 dark:border-brandPurple-700/50',
-          label: 'Admin Facilities Access',
-          icon: Settings,
-        };
-    }
-  };
+/**
+ * Role indicator — semantic status styling, not a separate theme per role.
+ */
+export const RoleBadge: React.FC<RoleBadgeProps> = ({
+  role,
+  showIcon = true,
+  compact = false,
+}) => {
+  const config = {
+    employee: {
+      className: 'bg-info-muted text-info border-info/30',
+      label: compact ? 'Employee' : 'Employee',
+      icon: User,
+    },
+    hr: {
+      className: 'bg-success-muted text-success border-success/30',
+      label: compact ? 'HR' : 'HR',
+      icon: ShieldCheck,
+    },
+    admin: {
+      className: 'bg-accent-muted text-accent border-accent/30',
+      label: compact ? 'Admin' : 'Admin',
+      icon: Settings,
+    },
+  }[role];
 
-  const style = getBadgeStyle();
-  const Icon = style.icon;
+  const Icon = config.icon;
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${style.bg} transition-colors`}
+      className={cn(
+        'inline-flex items-center gap-1 rounded-md border font-semibold transition-colors',
+        compact ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-0.5 text-[11px]',
+        config.className,
+      )}
     >
-      {showIcon && <Icon className="w-3.5 h-3.5 shrink-0" />}
-      {style.label}
+      {showIcon && <Icon className={cn('shrink-0', compact ? 'w-3 h-3' : 'w-3.5 h-3.5')} aria-hidden />}
+      {config.label}
     </span>
   );
 };

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { AppShell } from './AppShell';
 import { Navbar } from './Navbar';
 import { Sidebar } from './Sidebar';
 import { useAuth } from '../../context/AuthContext';
@@ -20,6 +21,17 @@ import {
 import { PublishedFloorMap } from '../floorplan/PublishedFloorMap';
 
 const SIDEBAR_COLLAPSED_KEY = 'deskit_sidebar_collapsed';
+
+const PAGE_LABELS: Record<string, string> = {
+  dashboard: 'Overview',
+  floorplan: 'Floor Maps',
+  teammates: 'Find People',
+  assignments: 'Seat Allocation',
+  requests: 'Seat Requests',
+  editor: 'Floor Plan Editor',
+  drafts: 'Drafts & Versions',
+  'change-requests': 'Change Requests',
+};
 
 export const Layout: React.FC = () => {
   const { user } = useAuth();
@@ -145,100 +157,104 @@ export const Layout: React.FC = () => {
     setFloors(getAllFloors());
   };
 
+  const mainClassName =
+    role === 'admin' && activeTab === 'editor'
+      ? 'min-h-0 overflow-hidden p-3 sm:p-4 flex flex-col'
+      : activeTab === 'floorplan'
+        ? 'min-h-0 overflow-y-auto p-4 sm:p-6 flex flex-col'
+        : undefined;
+
   return (
-    <div className="flex h-screen overflow-hidden bg-light-bg dark:bg-dark-bg">
-      <Sidebar
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        collapsed={sidebarCollapsed}
-        onCollapsedChange={handleSidebarCollapsedChange}
-      />
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <Navbar
-          activeOfficeId={activeOfficeId}
-          activeFloorId={activeFloorId}
-          floors={floors}
-          onOfficeChange={handleOfficeChange}
-          onFloorChange={handleFloorChange}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-        />
-        <main
-          className={
-            role === 'admin' && activeTab === 'editor'
-              ? 'flex-1 min-h-0 overflow-hidden p-3 sm:p-4 flex flex-col'
-              : activeTab === 'floorplan'
-                ? 'flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 flex flex-col'
-                : 'flex-1 overflow-y-auto p-4 sm:p-6'
-          }
-        >
-          {activeTab === 'floorplan' ? (
-            role === 'hr' ? (
-              <HrDashboard
-                floorPlan={currentFloorPlan}
-                searchQuery={searchQuery}
-                onUpdateDesk={handleUpdateDesk}
-                activeTab="floorplan"
-                publishedDocument={publishedDoc}
-              />
-            ) : publishedDoc ? (
-              <div className="flex-1 min-h-[min(70vh,640px)] flex flex-col">
-                <PublishedFloorMap
-                  document={publishedDoc}
-                  desks={currentFloorPlan.desks}
-                  showGrid={publishedShowGrid}
-                  onToggleGrid={() => setPublishedShowGrid((v) => !v)}
-                  searchQuery={searchQuery}
-                  compactChrome
-                  className="flex-1 min-h-[min(60vh,560px)]"
-                />
-              </div>
-            ) : (
-              <div className="flex-1 min-h-0 flex flex-col gap-3">
-                <p className="text-xs text-light-muted dark:text-dark-muted shrink-0">
-                  No published SVG map yet — showing desk layout. Admin can publish from Creator.
-                </p>
-                <div className="flex-1 min-h-[min(60vh,560px)]">
-                  <FloorPlanViewer floorPlan={currentFloorPlan} searchQuery={searchQuery} />
-                </div>
-              </div>
-            )
-          ) : role === 'employee' ? (
-            <EmployeeDashboard
-              floorPlan={currentFloorPlan}
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              activeTab={activeTab}
-              activeFloor={activeFloor}
-              activeOffice={activeOffice}
-              floors={floors}
-              publishedDocument={publishedDoc}
-            />
-          ) : role === 'hr' ? (
+    <>
+      <AppShell
+        mainClassName={mainClassName}
+        sidebar={
+          <Sidebar
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            collapsed={sidebarCollapsed}
+            onCollapsedChange={handleSidebarCollapsedChange}
+          />
+        }
+        header={
+          <Navbar
+            activeOfficeId={activeOfficeId}
+            activeFloorId={activeFloorId}
+            floors={floors}
+            onOfficeChange={handleOfficeChange}
+            onFloorChange={handleFloorChange}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            pageLabel={PAGE_LABELS[activeTab]}
+          />
+        }
+      >
+        {activeTab === 'floorplan' ? (
+          role === 'hr' ? (
             <HrDashboard
               floorPlan={currentFloorPlan}
               searchQuery={searchQuery}
               onUpdateDesk={handleUpdateDesk}
-              activeTab={activeTab}
+              activeTab="floorplan"
               publishedDocument={publishedDoc}
             />
+          ) : publishedDoc ? (
+            <div className="flex-1 min-h-[min(70vh,640px)] flex flex-col">
+              <PublishedFloorMap
+                document={publishedDoc}
+                desks={currentFloorPlan.desks}
+                showGrid={publishedShowGrid}
+                onToggleGrid={() => setPublishedShowGrid((v) => !v)}
+                searchQuery={searchQuery}
+                compactChrome
+                className="flex-1 min-h-[min(60vh,560px)]"
+              />
+            </div>
           ) : (
-            <AdminDashboard
-              floorPlan={currentFloorPlan}
-              onPublish={handlePublishFloorPlan}
-              onCreatorPublished={handleCreatorPublished}
-              activeTab={activeTab}
-              activeFloorId={activeFloorId}
-              activeOfficeId={activeOfficeId}
-              floors={floors}
-              onFloorChange={handleFloorChange}
-              onFloorsChanged={handleFloorsChanged}
-            />
-          )}
-        </main>
-      </div>
+            <div className="flex-1 min-h-0 flex flex-col gap-3">
+              <p className="text-xs text-content-secondary shrink-0">
+                No published SVG map yet — showing desk layout. Admin can publish from Creator.
+              </p>
+              <div className="flex-1 min-h-[min(60vh,560px)]">
+                <FloorPlanViewer floorPlan={currentFloorPlan} searchQuery={searchQuery} />
+              </div>
+            </div>
+          )
+        ) : role === 'employee' ? (
+          <EmployeeDashboard
+            floorPlan={currentFloorPlan}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            activeTab={activeTab}
+            activeFloor={activeFloor}
+            activeOffice={activeOffice}
+            floors={floors}
+            publishedDocument={publishedDoc}
+          />
+        ) : role === 'hr' ? (
+          <HrDashboard
+            floorPlan={currentFloorPlan}
+            searchQuery={searchQuery}
+            onUpdateDesk={handleUpdateDesk}
+            activeTab={activeTab}
+            publishedDocument={publishedDoc}
+          />
+        ) : (
+          <AdminDashboard
+            floorPlan={currentFloorPlan}
+            onPublish={handlePublishFloorPlan}
+            onCreatorPublished={handleCreatorPublished}
+            activeTab={activeTab}
+            activeFloorId={activeFloorId}
+            activeOfficeId={activeOfficeId}
+            floors={floors}
+            onFloorChange={handleFloorChange}
+            onFloorsChanged={handleFloorsChanged}
+          />
+        )}
+      </AppShell>
 
       <SsoLoginModal />
-    </div>
+    </>
   );
 };
