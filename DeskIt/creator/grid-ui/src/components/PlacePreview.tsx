@@ -1,23 +1,22 @@
 import React from 'react';
-import type { OutlineVertex } from '../types/geometry';
 import { FINEST_PER_A } from '../geometry/grid';
 
 interface PlacePreviewProps {
   origin: { col: number; row: number };
   widthCells: number;
   heightCells: number;
-  outline?: OutlineVertex[];
+  /** Kept for API compatibility; editor ghost always uses AABB rect. */
+  outline?: unknown;
   fits: boolean;
   a: number;
   color?: string;
 }
 
-/** Ghost footprint while a library item is armed for placement. */
+/** Ghost footprint while a library item is armed for placement (AABB rect only). */
 const PlacePreview: React.FC<PlacePreviewProps> = ({
   origin,
   widthCells,
   heightCells,
-  outline,
   fits,
   a,
   color = '#3b82f6',
@@ -29,25 +28,6 @@ const PlacePreview: React.FC<PlacePreviewProps> = ({
   const h = heightCells * f;
   const fill = fits ? color : '#ef4444';
   const opacity = fits ? 0.22 : 0.28;
-
-  if (outline && outline.length >= 3) {
-    const pts = outline
-      .map((v) => `${(origin.col + v.col) * f},${(origin.row + v.row) * f}`)
-      .join(' ');
-    return (
-      <g id="place-preview" pointerEvents="none">
-        <polygon
-          points={pts}
-          fill={fill}
-          fillOpacity={opacity}
-          stroke={fill}
-          strokeWidth={1.5}
-          strokeDasharray="4 3"
-          vectorEffect="non-scaling-stroke"
-        />
-      </g>
-    );
-  }
 
   return (
     <g id="place-preview" pointerEvents="none">
