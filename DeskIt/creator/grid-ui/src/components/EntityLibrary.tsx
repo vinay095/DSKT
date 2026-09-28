@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import type { CatalogCategory, CustomLibraryEntry, LibraryItem } from '../types/geometry';
 import { assetUrl } from '../lib/catalog';
 import { groupCustomByCategory } from '../lib/library';
-import { FloorObjectRenderer, usesProceduralVisual } from './renderers';
+import { isSvgDataUrl } from '../lib/categoryStyles';
+import { FloorObjectRenderer } from './renderers';
 
 interface EntityLibraryProps {
   categories: CatalogCategory[];
@@ -37,8 +38,41 @@ const EntityLibrary: React.FC<EntityLibraryProps> = ({
   };
 
   const renderType = (item: LibraryItem) => {
-    const procedural = usesProceduralVisual(item.category, item.elementType);
-    const preview = !procedural ? assetUrl(item.svg) : null;
+    const dataPreview = isSvgDataUrl(item.svg) ? item.svg : undefined;
+    const filePreview = !dataPreview ? assetUrl(item.svg) : undefined;
+    const preview = dataPreview || filePreview;
+    const outline = item.outline;
+    let outlinePreview: React.ReactNode = null;
+    if (!preview && outline && outline.length >= 3) {
+      const cols = outline.map((v) => v.col);
+      const rows = outline.map((v) => v.row);
+      const minC = Math.min(...cols);
+      const maxC = Math.max(...cols);
+      const minR = Math.min(...rows);
+      const maxR = Math.max(...rows);
+      const vbW = Math.max(maxC - minC, 1);
+      const vbH = Math.max(maxR - minR, 1);
+      const pts = outline.map((v) => `${v.col - minC},${v.row - minR}`).join(' ');
+      const sw = Math.max(vbW, vbH) * 0.04;
+      outlinePreview = (
+        <svg
+          className="library-preview"
+          viewBox={`0 0 ${vbW} ${vbH}`}
+          width={40}
+          height={32}
+          aria-hidden
+        >
+          <polygon
+            points={pts}
+            fill={item.color}
+            fillOpacity={0.55}
+            stroke={item.color}
+            strokeWidth={sw}
+            strokeLinejoin="round"
+          />
+        </svg>
+      );
+    }
     return (
       <div
         key={item.id}
@@ -49,7 +83,11 @@ const EntityLibrary: React.FC<EntityLibraryProps> = ({
           className="library-item-main"
           onClick={() => onSelect(item)}
         >
-          {procedural ? (
+          {preview ? (
+            <img src={preview} alt="" className="library-preview" />
+          ) : outlinePreview ? (
+            outlinePreview
+          ) : (
             <svg
               className="library-preview"
               viewBox="0 0 40 32"
@@ -66,10 +104,6 @@ const EntityLibrary: React.FC<EntityLibraryProps> = ({
                 detail="simple"
               />
             </svg>
-          ) : preview ? (
-            <img src={preview} alt="" className="library-preview" />
-          ) : (
-            <span className="library-swatch" style={{ background: item.color }} />
           )}
           <span className="library-meta">
             <strong>{item.label}</strong>

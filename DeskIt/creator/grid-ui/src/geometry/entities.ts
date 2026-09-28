@@ -1,11 +1,9 @@
 import type { Entity, GridCell, Point, Rect } from '../types/geometry';
-import { pointInRelativeCells } from './footprint';
 import { FINEST_PER_A } from './grid';
 import {
   cellsToOutline,
   outlineToCells,
   outlineToSvgPath,
-  pointInOutline,
   rotateOutline90CCW,
 } from './shapeStorage';
 
@@ -44,49 +42,22 @@ export function isPolygonEntity(entity: Entity): boolean {
   );
 }
 
+/** Hit-test uses AABB so editor selection matches schematic rect visuals. */
 export function hitTestEntity(entities: Entity[], world: Point, a: number): Entity | null {
   for (let i = entities.length - 1; i >= 0; i--) {
     const e = entities[i];
-    if (isPolygonEntity(e)) {
-      if (e.cells && e.cells.length > 0) {
-        if (pointInRelativeCells(world, e.origin, e.cells, a)) return e;
-      } else if (e.outline && e.outline.length >= 3) {
-        const f = a / FINEST_PER_A;
-        const local = {
-          x: world.x / f - e.origin.col,
-          y: world.y / f - e.origin.row,
-        };
-        if (pointInOutline(local, e.outline)) return e;
-      }
-      continue;
-    }
     if (pointInRect(world, entityBounds(e, a))) return e;
   }
   return null;
 }
 
+/** Marquee selection uses AABB overlap (matches editor rect visuals). */
 export function entitiesIntersectingRect(
   entities: Entity[],
   rect: Rect,
   a: number,
 ): Entity[] {
-  const f = a / FINEST_PER_A;
-  return entities.filter((e) => {
-    if (isPolygonEntity(e) && e.cells && e.cells.length > 0) {
-      return e.cells.some((c) =>
-        rectsIntersect(rect, {
-          x: (e.origin.col + c.col) * f,
-          y: (e.origin.row + c.row) * f,
-          width: f,
-          height: f,
-        }),
-      );
-    }
-    if (isPolygonEntity(e) && e.outline && e.outline.length >= 3) {
-      return rectsIntersect(entityBounds(e, a), rect);
-    }
-    return rectsIntersect(entityBounds(e, a), rect);
-  });
+  return entities.filter((e) => rectsIntersect(entityBounds(e, a), rect));
 }
 
 export function translateEntity(entity: Entity, dCol: number, dRow: number): Entity {
