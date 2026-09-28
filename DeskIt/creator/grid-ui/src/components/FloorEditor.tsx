@@ -108,7 +108,6 @@ import EntityLibrary from './EntityLibrary';
 import PropertiesPanel from './PropertiesPanel';
 import Toolbar from './Toolbar';
 import HowToUseModal from './HowToUseModal';
-import ImportFloorImageDialog from './ImportFloorImageDialog';
 import { MessageToast, PromptToast, type PromptRequest } from './PromptToast';
 import { ZOOM_BUTTON_FACTOR, wheelZoomFactor } from '../geometry/zoom';
 import {
@@ -200,19 +199,9 @@ function askText(
 
 interface FloorEditorProps {
   onOpenPretty: (doc: FloorDocument) => void; // Preview
-  /** DeskIt parent (or URL-scoped localStorage) may push a FloorDocument to hydrate the editor. */
-  externalDocument?: FloorDocument | null;
-  /** Bumps when a new external document should be applied (even if reference equals). */
-  externalDocumentNonce?: number;
-  floorContext?: { floorId?: string; officeId?: string };
 }
 
-const FloorEditor: React.FC<FloorEditorProps> = ({
-  onOpenPretty,
-  externalDocument = null,
-  externalDocumentNonce = 0,
-  floorContext,
-}) => {
+const FloorEditor: React.FC<FloorEditorProps> = ({ onOpenPretty }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -237,7 +226,6 @@ const FloorEditor: React.FC<FloorEditorProps> = ({
   );
   const [zones, setZones] = useState<FloorZone[]>([]);
   const [unusableRegions, setUnusableRegions] = useState<UnusableRegion[]>([]);
-  const [importFloorOpen, setImportFloorOpen] = useState(false);
   const [layoutPlaceLevel, setLayoutPlaceLevel] = useState<ScaleLevel | null>(null);
   const [promptReq, setPromptReq] = useState<PromptRequest | null>(null);
   const promptResolveRef = useRef<((v: string | null) => void) | null>(null);
@@ -812,57 +800,6 @@ const FloorEditor: React.FC<FloorEditorProps> = ({
     setSelectedCells([]);
   }, [selectedCells, a, zones.length, requestPrompt]);
 
-
-  const handleImportFloorImage = useCallback(
-    (payload: {
-      floor: FloorConfig;
-      unusableRegions: UnusableRegion[];
-      zones: FloorZone[];
-      replaceExisting: boolean;
-    }) => {
-      const nextFloor = payload.floor;
-      const maxCol = floorFinestCols(nextFloor);
-      const maxRow = floorFinestRows(nextFloor);
-      const entityOutside = (e: Entity) =>
-        e.origin.col < 0 ||
-        e.origin.row < 0 ||
-        e.origin.col + e.widthCells > maxCol ||
-        e.origin.row + e.heightCells > maxRow;
-
-      setFloor(nextFloor);
-      if (payload.replaceExisting) {
-        setUnusableRegions(payload.unusableRegions);
-        setZones(payload.zones);
-        // Least surprising: drop furniture that no longer fits the new boundary
-        // (clamping would silently relocate desks onto walls).
-        setEntities((prev) => {
-          const kept = prev.filter((e) => !entityOutside(e));
-          const removed = prev.length - kept.length;
-          showToast(
-            `Imported ${payload.unusableRegions.length} wall region(s)` +
-              (payload.zones.length ? `, ${payload.zones.length} room(s)` : '') +
-              (removed > 0
-                ? `. Removed ${removed} out-of-bounds item(s).`
-                : '.'),
-          );
-          return kept;
-        });
-      } else {
-        setUnusableRegions((prev) => [...prev, ...payload.unusableRegions]);
-        setZones((prev) => [...prev, ...payload.zones]);
-        showToast(
-          `Imported ${payload.unusableRegions.length} wall region(s)` +
-            (payload.zones.length ? `, ${payload.zones.length} room(s)` : '') +
-            '.',
-        );
-      }
-      setImportFloorOpen(false);
-      setSelectedCells([]);
-      setSelectedIds([]);
-    },
-    [showToast, setEntities],
-  );
-
   const handleMarkUnusable = useCallback(async () => {
     if (selectedCells.length === 0) return;
     const finest = selectedCellsToFinest(selectedCells, a).filter(
@@ -1431,16 +1368,6 @@ const FloorEditor: React.FC<FloorEditorProps> = ({
     applyDocument(doc);
   };
 
-  // Hydrate from DeskIt parent postMessage / URL-scoped published store
-  useEffect(() => {
-    if (!externalDocument) return;
-    applyDocument(externalDocument);
-    const label = externalDocument.name || floorContext?.floorId || 'floor';
-    showToast(`Loaded map for ${label}`);
-    // applyDocument / showToast are stable enough for boot+reload; nonce drives re-apply
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [externalDocumentNonce]);
-
   const handleImportJson = (file: File) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -1619,7 +1546,6 @@ const FloorEditor: React.FC<FloorEditorProps> = ({
         onExportPng={() => void runExport('png')}
         onExportSvg={() => void runExport('svg')}
         onExportPdf={() => void runExport('pdf')}
-        onImportFloorImage={() => setImportFloorOpen(true)}
         onOpenPreview={() => onOpenPretty(buildDocument())}
       />
 
@@ -1864,22 +1790,10 @@ const FloorEditor: React.FC<FloorEditorProps> = ({
         />
       </div>
 
-      
-      <ImportFloorImageDialog
-        open={importFloorOpen}
-        currentFloor={floor}
-        onCancel={() => setImportFloorOpen(false)}
-        onApply={handleImportFloorImage}
-      />
-<HowToUseModal open={howToOpen} onClose={() => setHowToOpen(false)} />
+      <HowToUseModal open={howToOpen} onClose={() => setHowToOpen(false)} />
       <SavePolygonDialog
         open={Boolean(polygonPending)}
         defaultLabel={`Polygon ${customLibrary.length + 1}`}
-        outline={
-          polygonPending ? cellsToOutline(polygonPending.cells) : undefined
-        }
-        widthCells={polygonPending?.widthCells}
-        heightCells={polygonPending?.heightCells}
         onCancel={() => setPolygonPending(null)}
         onSave={confirmPolygonSave}
       />

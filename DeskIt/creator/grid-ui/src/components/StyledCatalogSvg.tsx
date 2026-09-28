@@ -6,7 +6,7 @@ import {
   stylizeCatalogSvgMarkup,
   type ElementRenderState,
 } from '../lib/categoryStyles';
-import { FloorObjectRenderer } from './renderers';
+import { FloorObjectRenderer, usesProceduralVisual } from './renderers';
 
 const urlCache = new Map<string, string>();
 
@@ -35,8 +35,8 @@ async function loadStyledSvgUrl(
       raw = await res.text();
     }
 
-    const styledMarkup = stylizeCatalogSvgMarkup(raw, style);
-    const blob = new Blob([styledMarkup], { type: 'image/svg+xml;charset=utf-8' });
+    const styled = stylizeCatalogSvgMarkup(raw, style);
+    const blob = new Blob([styled], { type: 'image/svg+xml;charset=utf-8' });
     const objectUrl = URL.createObjectURL(blob);
     urlCache.set(cacheKey, objectUrl);
     return objectUrl;
@@ -58,8 +58,8 @@ interface StyledCatalogSvgProps {
 }
 
 /**
- * Prefer catalog / custom SVG when available.
- * Procedural FloorObjectRenderer is only the fallback (no asset, or load failure).
+ * Loads a catalog or generated SVG, applies category/state colors at render time.
+ * Original asset files are never modified on disk.
  */
 export function StyledCatalogSvg({
   svgFile,
@@ -73,10 +73,11 @@ export function StyledCatalogSvg({
 }: StyledCatalogSvgProps) {
   const [href, setHref] = useState<string | null>(null);
   const source = svgMarkup || svgFile;
+  const procedural = usesProceduralVisual(category, elementType);
 
   useEffect(() => {
     let cancelled = false;
-    if (!source) {
+    if (procedural || !source) {
       setHref(null);
       return;
     }
@@ -86,29 +87,29 @@ export function StyledCatalogSvg({
     return () => {
       cancelled = true;
     };
-  }, [source, category, elementType, entityColor, renderState]);
+  }, [source, category, elementType, entityColor, renderState, procedural]);
 
-  if (href) {
+  if (procedural || !href) {
     return (
-      <image
-        href={href}
-        x={0}
-        y={0}
+      <FloorObjectRenderer
         width={width}
         height={height}
-        preserveAspectRatio="xMidYMid meet"
+        category={category}
+        elementType={elementType}
+        color={entityColor}
+        renderState={renderState}
       />
     );
   }
 
   return (
-    <FloorObjectRenderer
+    <image
+      href={href}
+      x={0}
+      y={0}
       width={width}
       height={height}
-      category={category}
-      elementType={elementType}
-      color={entityColor}
-      renderState={renderState}
+      preserveAspectRatio="xMidYMid meet"
     />
   );
 }

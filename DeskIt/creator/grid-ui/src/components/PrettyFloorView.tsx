@@ -18,16 +18,11 @@ import {
 interface PrettyFloorViewProps {
   document: FloorDocument;
   onBack: () => void;
-  floorContext?: { floorId?: string; officeId?: string };
 }
 
 type Cam = { zoom: number; panX: number; panY: number };
 
-const PrettyFloorView: React.FC<PrettyFloorViewProps> = ({
-  document: rawDoc,
-  onBack,
-  floorContext,
-}) => {
+const PrettyFloorView: React.FC<PrettyFloorViewProps> = ({ document: rawDoc, onBack }) => {
   const doc = useMemo(() => normalizeDocument(rawDoc), [rawDoc]);
   const a = doc.a;
   const floor = doc.floor;
@@ -165,12 +160,8 @@ const PrettyFloorView: React.FC<PrettyFloorViewProps> = ({
   );
 
   const handlePublish = () => {
-    const result = publishFloorDocument(doc, floorContext);
-    setPublishMsg(
-      result.ok && floorContext?.floorId
-        ? `${result.message} (${floorContext.floorId})`
-        : result.message,
-    );
+    const result = publishFloorDocument(doc);
+    setPublishMsg(result.message);
     window.setTimeout(() => setPublishMsg(null), 3200);
   };
 
@@ -314,6 +305,44 @@ const PrettyFloorView: React.FC<PrettyFloorViewProps> = ({
                   );
                 }
 
+                // Catalog OR generated custom SVG (data URL) — same styling pipeline
+                if (e.svg) {
+                  const fontSize = adaptiveLabelFontSize(w, h, { ratio: 0.16, min: f * 3, max: a * 0.28 });
+                  const label = truncateLabel(
+                    e.label || '',
+                    maxLabelChars(w, fontSize),
+                  );
+                  return (
+                    <g key={e.objectId}>
+                      <g
+                        transform={`translate(${cx}, ${cy}) scale(1, -1) rotate(${rot}) translate(${-w / 2}, ${-h / 2})`}
+                      >
+                        <StyledCatalogSvg
+                          svgFile={e.svg}
+                          category={e.category}
+                          elementType={e.elementType}
+                          entityColor={e.color}
+                          width={w}
+                          height={h}
+                        />
+                      </g>
+                      {label && (
+                        <g transform={readableLabelTransform(cx, cy + h * 0.55, rot)}>
+                          <text
+                            textAnchor="middle"
+                            dominantBaseline="hanging"
+                            fontSize={fontSize}
+                            fill="currentColor"
+                            opacity={0.8}
+                          >
+                            {label}
+                          </text>
+                        </g>
+                      )}
+                    </g>
+                  );
+                }
+
                 if (isPolygonEntity(e) && (e.svgPath || e.outline)) {
                   let pathD = e.svgPath ?? '';
                   if (!pathD && e.outline && e.outline.length >= 2) {
@@ -347,44 +376,6 @@ const PrettyFloorView: React.FC<PrettyFloorViewProps> = ({
                             fontSize={fontSize}
                             fill="currentColor"
                             opacity={0.85}
-                          >
-                            {label}
-                          </text>
-                        </g>
-                      )}
-                    </g>
-                  );
-                }
-
-                // Catalog OR generated custom SVG (data URL) — same styling pipeline
-                if (e.svg) {
-                  const fontSize = adaptiveLabelFontSize(w, h, { ratio: 0.16, min: f * 3, max: a * 0.28 });
-                  const label = truncateLabel(
-                    e.label || '',
-                    maxLabelChars(w, fontSize),
-                  );
-                  return (
-                    <g key={e.objectId}>
-                      <g
-                        transform={`translate(${cx}, ${cy}) scale(1, -1) rotate(${rot}) translate(${-w / 2}, ${-h / 2})`}
-                      >
-                        <StyledCatalogSvg
-                          svgFile={e.svg}
-                          category={e.category}
-                          elementType={e.elementType}
-                          entityColor={e.color}
-                          width={w}
-                          height={h}
-                        />
-                      </g>
-                      {label && (
-                        <g transform={readableLabelTransform(cx, cy + h * 0.55, rot)}>
-                          <text
-                            textAnchor="middle"
-                            dominantBaseline="hanging"
-                            fontSize={fontSize}
-                            fill="currentColor"
-                            opacity={0.8}
                           >
                             {label}
                           </text>

@@ -35,7 +35,6 @@ interface ToolbarProps {
   onExportSvg: () => void;
   onExportPdf: () => void;
   onOpenPreview: () => void;
-  onImportFloorImage: () => void;
 }
 
 const Toolbar: React.FC<ToolbarProps> = ({
@@ -71,7 +70,6 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onExportSvg,
   onExportPdf,
   onOpenPreview,
-  onImportFloorImage,
 }) => {
   const [draftOpen, setDraftOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -191,14 +189,6 @@ const Toolbar: React.FC<ToolbarProps> = ({
       <div className="toolbar-spacer" />
 
       <div className="toolbar-group toolbar-menus">
-        <button
-          type="button"
-          className="toolbar-btn"
-          onClick={onImportFloorImage}
-          title="Import walls and rooms from a geometric floor-plan image"
-        >
-          Import floor image
-        </button>
         <button type="button" className="toolbar-btn" onClick={onOpenPreview}>
           Preview
         </button>

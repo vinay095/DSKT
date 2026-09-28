@@ -1,92 +1,24 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import FloorEditor from './components/FloorEditor';
 import PrettyFloorView from './components/PrettyFloorView';
 import type { FloorDocument } from './lib/drafts';
-import { normalizeDocument } from './lib/drafts';
-import {
-  DESKIT_CREATOR_READY_EVENT,
-  DESKIT_LOAD_DOCUMENT_EVENT,
-  DESKIT_REQUEST_DOCUMENT_EVENT,
-  getCreatorContextFromUrl,
-  loadPublishedFloorDocument,
-  type CreatorFloorContext,
-} from './lib/publish';
+
+const CREATOR_READY = 'deskit:creator-ready';
 
 function App() {
-  const urlCtx = useMemo(() => getCreatorContextFromUrl(), []);
-  const [floorCtx, setFloorCtx] = useState<CreatorFloorContext>(urlCtx);
   const [prettyDoc, setPrettyDoc] = useState<FloorDocument | null>(null);
-  const [externalDoc, setExternalDoc] = useState<FloorDocument | null>(() =>
-    urlCtx.floorId ? loadPublishedFloorDocument(urlCtx.floorId) : null,
-  );
-  const [externalDocNonce, setExternalDocNonce] = useState(0);
-
-  const applyIncomingDocument = useCallback(
-    (raw: unknown, nextCtx?: CreatorFloorContext) => {
-      if (!raw || typeof raw !== 'object') return;
-      try {
-        const doc = normalizeDocument(raw as FloorDocument);
-        if (doc.version !== 2) return;
-        setExternalDoc(doc);
-        setExternalDocNonce((n) => n + 1);
-        if (nextCtx?.floorId || nextCtx?.officeId) {
-          setFloorCtx((prev) => ({
-            floorId: nextCtx.floorId ?? prev.floorId,
-            officeId: nextCtx.officeId ?? prev.officeId,
-          }));
-        }
-      } catch {
-        /* ignore malformed payload */
-      }
-    },
-    [],
-  );
 
   // Tell parent DeskIt shell that this iframe is the real floor planner (not DeskIt itself)
   useEffect(() => {
     const announce = () => {
       if (window.parent && window.parent !== window) {
-        window.parent.postMessage(
-          {
-            type: DESKIT_CREATOR_READY_EVENT,
-            app: 'creator-grid-ui',
-            floorId: floorCtx.floorId,
-            officeId: floorCtx.officeId,
-          },
-          '*',
-        );
-        // Cross-origin: parent holds the canonical store — request the doc for this floor
-        if (floorCtx.floorId) {
-          window.parent.postMessage(
-            {
-              type: DESKIT_REQUEST_DOCUMENT_EVENT,
-              floorId: floorCtx.floorId,
-              officeId: floorCtx.officeId,
-            },
-            '*',
-          );
-        }
+        window.parent.postMessage({ type: CREATOR_READY, app: 'creator-grid-ui' }, '*');
       }
     };
     announce();
     const t = window.setTimeout(announce, 300);
     return () => window.clearTimeout(t);
-  }, [floorCtx.floorId, floorCtx.officeId]);
-
-  // Parent may push a FloorDocument after ready (or when switching floors via new iframe src)
-  useEffect(() => {
-    const onMessage = (event: MessageEvent) => {
-      const data = event.data;
-      if (!data || typeof data !== 'object') return;
-      if (data.type !== DESKIT_LOAD_DOCUMENT_EVENT) return;
-      applyIncomingDocument(data.document, {
-        floorId: typeof data.floorId === 'string' ? data.floorId : undefined,
-        officeId: typeof data.officeId === 'string' ? data.officeId : undefined,
-      });
-    };
-    window.addEventListener('message', onMessage);
-    return () => window.removeEventListener('message', onMessage);
-  }, [applyIncomingDocument]);
+  }, []);
 
   return (
     <>
@@ -100,19 +32,10 @@ function App() {
         }}
         aria-hidden={Boolean(prettyDoc)}
       >
-        <FloorEditor
-          onOpenPretty={setPrettyDoc}
-          externalDocument={externalDoc}
-          externalDocumentNonce={externalDocNonce}
-          floorContext={floorCtx}
-        />
+        <FloorEditor onOpenPretty={setPrettyDoc} />
       </div>
       {prettyDoc && (
-        <PrettyFloorView
-          document={prettyDoc}
-          floorContext={floorCtx}
-          onBack={() => setPrettyDoc(null)}
-        />
+        <PrettyFloorView document={prettyDoc} onBack={() => setPrettyDoc(null)} />
       )}
     </>
   );

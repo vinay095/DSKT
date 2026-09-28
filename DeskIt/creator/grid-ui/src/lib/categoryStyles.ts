@@ -198,9 +198,9 @@ const ELEMENT_TYPE_STYLES: Record<string, CategoryVisualStyle> = {
     label: 'Corner desk',
   },
   'computer-monitor': {
-    fill: '#1E293B',
-    stroke: '#0F172A',
-    fillOpacity: 0.72,
+    fill: '#57534E',
+    stroke: '#292524',
+    fillOpacity: 0.65,
     strokeWidth: 1.3,
     label: 'Monitor',
   },
@@ -255,15 +255,15 @@ const ELEMENT_TYPE_STYLES: Record<string, CategoryVisualStyle> = {
     label: 'Meeting chair',
   },
   armchair: {
-    fill: '#6B3A3A',
-    stroke: '#3F1F1F',
+    fill: '#292524',
+    stroke: '#0C0A09',
     fillOpacity: 0.78,
     strokeWidth: 1.3,
     label: 'Armchair',
   },
   'lounge-chair': {
-    fill: '#3D5A5B',
-    stroke: '#1F3334',
+    fill: '#44403C',
+    stroke: '#1C1917',
     fillOpacity: 0.75,
     strokeWidth: 1.3,
     label: 'Lounge chair',
@@ -283,8 +283,8 @@ const ELEMENT_TYPE_STYLES: Record<string, CategoryVisualStyle> = {
     label: 'Couch',
   },
   loveseat: {
-    fill: '#78716C',
-    stroke: '#44403C',
+    fill: '#475569',
+    stroke: '#1E293B',
     fillOpacity: 0.65,
     strokeWidth: 1.4,
     label: 'Loveseat',
@@ -301,13 +301,7 @@ const ELEMENT_TYPE_STYLES: Record<string, CategoryVisualStyle> = {
     label: 'Conference table',
   },
   'round-table': CATEGORY_STYLES.meeting_room,
-  'dining-table-square': {
-    fill: '#A8A29E',
-    stroke: '#57534E',
-    fillOpacity: 0.5,
-    strokeWidth: 1.5,
-    label: 'Square table',
-  },
+  'dining-table-square': CATEGORY_STYLES.meeting_room,
   televizor: {
     fill: '#1E293B',
     stroke: '#020617',
@@ -421,59 +415,6 @@ function applyRenderState(
   }
 }
 
-function normalizeHexColor(hex: string): string {
-  const raw = hex.replace('#', '').trim().toLowerCase();
-  if (raw.length === 3) {
-    return raw
-      .split('')
-      .map((c) => c + c)
-      .join('');
-  }
-  if (raw.length >= 6) return raw.slice(0, 6);
-  return raw;
-}
-
-/** Default fill for a known type/category — used to detect user color overrides. */
-export function getTypeDefaultFill(
-  elementType?: string,
-  category?: string,
-): string | undefined {
-  if (elementType && ELEMENT_TYPE_STYLES[elementType]) {
-    return ELEMENT_TYPE_STYLES[elementType].fill;
-  }
-  if (category && CATEGORY_STYLES[category]) {
-    return CATEGORY_STYLES[category].fill;
-  }
-  return undefined;
-}
-
-/**
- * Legacy library-catalog brand accents (blue/indigo/violet). When an entity still
- * carries one of these from an older catalog, ignore it so type styles win.
- */
-const LEGACY_BRAND_FILLS = new Set(
-  [
-    '#3b82f6',
-    '#2563eb',
-    '#60a5fa',
-    '#1d4ed8',
-    '#6366f1',
-    '#4f46e5',
-    '#4338ca',
-    '#818cf8',
-    '#a855f7',
-    '#9333ea',
-    '#7e22ce',
-    '#8b5cf6',
-    '#7c3aed',
-  ].map(normalizeHexColor),
-);
-
-function isLegacyBrandFill(color?: string): boolean {
-  if (!color) return false;
-  return LEGACY_BRAND_FILLS.has(normalizeHexColor(color));
-}
-
 export function getCategoryStyle(
   category?: string,
   elementType?: string,
@@ -481,50 +422,28 @@ export function getCategoryStyle(
   state: ElementRenderState = 'default',
 ): CategoryVisualStyle {
   let base: CategoryVisualStyle = FALLBACK;
-  let hasTypedStyle = false;
 
   if (elementType && ELEMENT_TYPE_STYLES[elementType]) {
     base = ELEMENT_TYPE_STYLES[elementType];
-    hasTypedStyle = true;
   } else if (category && CATEGORY_STYLES[category]) {
     base = CATEGORY_STYLES[category];
-    hasTypedStyle = true;
   } else if (entityColor) {
     base = {
       fill: entityColor,
-      stroke: darkenHex(entityColor, 0.25),
+      stroke: entityColor,
       fillOpacity: 0.38,
       strokeWidth: 1.5,
       label: elementType || category || 'Element',
     };
   }
 
-  // Prefer type/category styles. Apply entityColor only as an explicit user
-  // override (differs from type default) or when there is no typed style.
-  // Legacy brand catalog colors are ignored so Preview is not purple/blue.
-  if (entityColor) {
-    const typeDefault = hasTypedStyle ? base.fill : undefined;
-    const differsFromDefault =
-      !typeDefault ||
-      normalizeHexColor(entityColor) !== normalizeHexColor(typeDefault);
-    const allowOverride =
-      !hasTypedStyle ||
-      category === 'custom' ||
-      (differsFromDefault && !isLegacyBrandFill(entityColor));
-
-    if (allowOverride && differsFromDefault) {
-      base = {
-        ...base,
-        fill: entityColor,
-        stroke: darkenHex(entityColor, 0.25),
-      };
-    } else if (allowOverride && !hasTypedStyle) {
-      base = {
-        ...base,
-        fill: entityColor,
-        stroke: darkenHex(entityColor, 0.25),
-      };
-    }
+  // Explicit entity color override (custom admin pick) keeps fill, category still informs stroke if missing
+  if (entityColor && (elementType || category)) {
+    base = {
+      ...base,
+      fill: entityColor,
+      stroke: darkenHex(entityColor, 0.25),
+    };
   }
 
   return applyRenderState(base, state);
