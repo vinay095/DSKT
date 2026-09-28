@@ -10,7 +10,7 @@
           "svg": "computer.svg",
           "widthCells": 2,
           "heightCells": 1,
-          "color": "#3b82f6"
+          "color": "#78716C"
         },
         {
           "elementType": "corner-desk",
@@ -18,7 +18,7 @@
           "svg": "corner-desk.svg",
           "widthCells": 2,
           "heightCells": 3,
-          "color": "#2563eb"
+          "color": "#A16207"
         },
         {
           "elementType": "computer-monitor",
@@ -26,7 +26,7 @@
           "svg": "computer-monitor.svg",
           "widthCells": 2,
           "heightCells": 1,
-          "color": "#60a5fa"
+          "color": "#1E293B"
         },
         {
           "elementType": "drawer",
@@ -34,7 +34,7 @@
           "svg": "drawer.svg",
           "widthCells": 2,
           "heightCells": 1,
-          "color": "#3b82f6"
+          "color": "#D6D3D1"
         },
         {
           "elementType": "drawerr",
@@ -42,7 +42,7 @@
           "svg": "drawerr.svg",
           "widthCells": 4,
           "heightCells": 2,
-          "color": "#2563eb"
+          "color": "#A8A29E"
         },
         {
           "elementType": "noptiera",
@@ -50,7 +50,7 @@
           "svg": "noptiera.svg",
           "widthCells": 2,
           "heightCells": 2,
-          "color": "#1d4ed8"
+          "color": "#E7E5E4"
         }
       ]
     },
@@ -64,7 +64,7 @@
           "svg": "chair.svg",
           "widthCells": 2,
           "heightCells": 2,
-          "color": "#6366f1"
+          "color": "#1F2937"
         },
         {
           "elementType": "chair-1",
@@ -72,7 +72,7 @@
           "svg": "chair-1.svg",
           "widthCells": 2,
           "heightCells": 2,
-          "color": "#6366f1"
+          "color": "#111827"
         },
         {
           "elementType": "chair-2",
@@ -80,7 +80,7 @@
           "svg": "chair-2.svg",
           "widthCells": 2,
           "heightCells": 2,
-          "color": "#4f46e5"
+          "color": "#374151"
         },
         {
           "elementType": "chair-3",
@@ -88,7 +88,7 @@
           "svg": "chair-3.svg",
           "widthCells": 2,
           "heightCells": 2,
-          "color": "#4338ca"
+          "color": "#4B5563"
         },
         {
           "elementType": "armchair",
@@ -96,7 +96,7 @@
           "svg": "armchair.svg",
           "widthCells": 3,
           "heightCells": 3,
-          "color": "#818cf8"
+          "color": "#6B3A3A"
         },
         {
           "elementType": "lounge-chair",
@@ -104,7 +104,7 @@
           "svg": "lounge-chair.svg",
           "widthCells": 3,
           "heightCells": 3,
-          "color": "#818cf8"
+          "color": "#3D5A5B"
         },
         {
           "elementType": "bar-stool",
@@ -112,7 +112,7 @@
           "svg": "bar-stool.svg",
           "widthCells": 2,
           "heightCells": 2,
-          "color": "#64748b"
+          "color": "#57534E"
         },
         {
           "elementType": "couch",
@@ -120,7 +120,7 @@
           "svg": "couch.svg",
           "widthCells": 6,
           "heightCells": 4,
-          "color": "#818cf8"
+          "color": "#334155"
         },
         {
           "elementType": "loveseat",
@@ -128,7 +128,7 @@
           "svg": "loveseat.svg",
           "widthCells": 5,
           "heightCells": 3,
-          "color": "#818cf8"
+          "color": "#78716C"
         },
         {
           "elementType": "sectional-couch-seat",
@@ -136,7 +136,7 @@
           "svg": "sectional-couch-seat.svg",
           "widthCells": 4,
           "heightCells": 4,
-          "color": "#6366f1"
+          "color": "#374151"
         },
         {
           "elementType": "sectional-couch-corner-seat",
@@ -144,7 +144,7 @@
           "svg": "sectional-couch-corner-seat.svg",
           "widthCells": 4,
           "heightCells": 4,
-          "color": "#4f46e5"
+          "color": "#292524"
         }
       ]
     },
@@ -158,7 +158,7 @@
           "svg": "table.svg",
           "widthCells": 8,
           "heightCells": 6,
-          "color": "#a855f7"
+          "color": "#64748B"
         },
         {
           "elementType": "table2",
@@ -166,7 +166,7 @@
           "svg": "table2.svg",
           "widthCells": 10,
           "heightCells": 6,
-          "color": "#9333ea"
+          "color": "#57534E"
         },
         {
           "elementType": "round-table",
@@ -174,7 +174,7 @@
           "svg": "round-table.svg",
           "widthCells": 6,
           "heightCells": 6,
-          "color": "#9333ea"
+          "color": "#64748B"
         },
         {
           "elementType": "dining-table-square",
@@ -182,7 +182,7 @@
           "svg": "dining-table-square.svg",
           "widthCells": 6,
           "heightCells": 6,
-          "color": "#7e22ce"
+          "color": "#A8A29E"
         },
         {
           "elementType": "televizor",
@@ -190,7 +190,7 @@
           "svg": "televizor.svg",
           "widthCells": 4,
           "heightCells": 2,
-          "color": "#8b5cf6"
+          "color": "#1E293B"
         },
         {
           "elementType": "wardrobe-large",
@@ -198,7 +198,7 @@
           "svg": "wardrobe-large.svg",
           "widthCells": 4,
           "heightCells": 2,
-          "color": "#7c3aed"
+          "color": "#78716C"
         }
       ]
     },
@@ -212,7 +212,7 @@
           "svg": "dining-table-6.svg",
           "widthCells": 8,
           "heightCells": 4,
-          "color": "#f59e0b"
+          "color": "#D6D3D1"
         },
         {
           "elementType": "bar-counter",
@@ -220,7 +220,7 @@
           "svg": "bar-counter.svg",
           "widthCells": 10,
           "heightCells": 4,
-          "color": "#d97706"
+          "color": "#A8A29E"
         },
         {
           "elementType": "kitchenFridge",
@@ -228,7 +228,7 @@
           "svg": "kitchenFridge.svg",
           "widthCells": 3,
           "heightCells": 3,
-          "color": "#f59e0b"
+          "color": "#D6D3D1"
         },
         {
           "elementType": "kitchenSink",
@@ -236,7 +236,7 @@
           "svg": "kitchenSink.svg",
           "widthCells": 4,
           "heightCells": 3,
-          "color": "#ea580c"
+          "color": "#D6D3D1"
         },
         {
           "elementType": "kitchen-sink-corner",
@@ -244,7 +244,7 @@
           "svg": "kitchen-sink-corner.svg",
           "widthCells": 4,
           "heightCells": 4,
-          "color": "#ea580c"
+          "color": "#D6D3D1"
         },
         {
           "elementType": "countertop-corner",
@@ -252,7 +252,7 @@
           "svg": "countertop-corner.svg",
           "widthCells": 4,
           "heightCells": 4,
-          "color": "#d97706"
+          "color": "#D6D3D1"
         },
         {
           "elementType": "fume-hood-md",
@@ -260,7 +260,7 @@
           "svg": "fume-hood-md.svg",
           "widthCells": 4,
           "heightCells": 3,
-          "color": "#b45309"
+          "color": "#A8A29E"
         }
       ]
     },
@@ -274,7 +274,7 @@
           "svg": "toilet.svg",
           "widthCells": 2,
           "heightCells": 3,
-          "color": "#06b6d4"
+          "color": "#7DD3FC"
         },
         {
           "elementType": "bidet",
@@ -282,7 +282,7 @@
           "svg": "bidet.svg",
           "widthCells": 2,
           "heightCells": 3,
-          "color": "#0891b2"
+          "color": "#7DD3FC"
         },
         {
           "elementType": "bathroomSink",
@@ -290,7 +290,7 @@
           "svg": "bathroomSink.svg",
           "widthCells": 3,
           "heightCells": 2,
-          "color": "#06b6d4"
+          "color": "#7DD3FC"
         },
         {
           "elementType": "round-sink",
@@ -298,7 +298,7 @@
           "svg": "round-sink.svg",
           "widthCells": 2,
           "heightCells": 2,
-          "color": "#22d3ee"
+          "color": "#7DD3FC"
         },
         {
           "elementType": "double-sink",
@@ -306,7 +306,7 @@
           "svg": "double-sink.svg",
           "widthCells": 4,
           "heightCells": 2,
-          "color": "#0e7490"
+          "color": "#7DD3FC"
         },
         {
           "elementType": "corner-sink",
@@ -314,7 +314,7 @@
           "svg": "corner-sink.svg",
           "widthCells": 3,
           "heightCells": 3,
-          "color": "#0891b2"
+          "color": "#7DD3FC"
         },
         {
           "elementType": "shower",
@@ -322,7 +322,7 @@
           "svg": "shower.svg",
           "widthCells": 4,
           "heightCells": 4,
-          "color": "#06b6d4"
+          "color": "#7DD3FC"
         }
       ]
     },
@@ -336,7 +336,7 @@
           "svg": "door.svg",
           "widthCells": 3,
           "heightCells": 1,
-          "color": "#64748b"
+          "color": "#CBD5E1"
         },
         {
           "elementType": "window",
@@ -344,7 +344,7 @@
           "svg": "window.svg",
           "widthCells": 4,
           "heightCells": 1,
-          "color": "#94a3b8"
+          "color": "#E0F2FE"
         },
         {
           "elementType": "stairs-md-sq",
@@ -352,7 +352,7 @@
           "svg": "stairs-md-sq.svg",
           "widthCells": 4,
           "heightCells": 4,
-          "color": "#64748b"
+          "color": "#CBD5E1"
         },
         {
           "elementType": "stairs-lg-sq",
@@ -360,7 +360,7 @@
           "svg": "stairs-lg-sq.svg",
           "widthCells": 6,
           "heightCells": 6,
-          "color": "#475569"
+          "color": "#CBD5E1"
         },
         {
           "elementType": "stairs-small-sq",
@@ -368,7 +368,7 @@
           "svg": "stairs-small-sq.svg",
           "widthCells": 3,
           "heightCells": 3,
-          "color": "#64748b"
+          "color": "#CBD5E1"
         },
         {
           "elementType": "stairs-corner",
@@ -376,7 +376,7 @@
           "svg": "stairs-corner.svg",
           "widthCells": 4,
           "heightCells": 4,
-          "color": "#475569"
+          "color": "#CBD5E1"
         },
         {
           "elementType": "stairs-round",
@@ -384,7 +384,7 @@
           "svg": "stairs-round.svg",
           "widthCells": 5,
           "heightCells": 5,
-          "color": "#64748b"
+          "color": "#CBD5E1"
         },
         {
           "elementType": "stairs-u-shaped",
@@ -392,7 +392,7 @@
           "svg": "stairs-u-shaped.svg",
           "widthCells": 6,
           "heightCells": 6,
-          "color": "#475569"
+          "color": "#CBD5E1"
         },
         {
           "elementType": "stair-cover",
@@ -400,7 +400,7 @@
           "svg": "stair-cover.svg",
           "widthCells": 4,
           "heightCells": 2,
-          "color": "#94a3b8"
+          "color": "#CBD5E1"
         }
       ]
     },
@@ -414,7 +414,7 @@
           "svg": "plant.svg",
           "widthCells": 2,
           "heightCells": 2,
-          "color": "#22c55e"
+          "color": "#22C55E"
         },
         {
           "elementType": "large-plant",
@@ -422,7 +422,7 @@
           "svg": "large-plant.svg",
           "widthCells": 4,
           "heightCells": 4,
-          "color": "#16a34a"
+          "color": "#16A34A"
         },
         {
           "elementType": "potted-plant-1",
@@ -430,7 +430,7 @@
           "svg": "potted-plant-1.svg",
           "widthCells": 2,
           "heightCells": 2,
-          "color": "#22c55e"
+          "color": "#22C55E"
         },
         {
           "elementType": "potted-plant-2",
@@ -438,7 +438,7 @@
           "svg": "potted-plant-2.svg",
           "widthCells": 2,
           "heightCells": 3,
-          "color": "#15803d"
+          "color": "#4ADE80"
         }
       ]
     },
@@ -452,7 +452,7 @@
           "svg": "generic-object.svg",
           "widthCells": 2,
           "heightCells": 2,
-          "color": "#94a3b8"
+          "color": "#94A3B8"
         }
       ]
     },
@@ -465,7 +465,7 @@
           "label": "Text block",
           "widthCells": 6,
           "heightCells": 2,
-          "color": "#64748b"
+          "color": "#64748B"
         }
       ]
     }

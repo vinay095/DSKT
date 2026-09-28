@@ -26,6 +26,7 @@ export const ZonesLayer: React.FC<ZonesLayerProps> = ({
         const zY = zone.y * placementStep;
         const zW = zone.width * placementStep;
         const zH = zone.height * placementStep;
+        const hasPath = Boolean(zone.pathSvg && zone.pathSvg.trim());
 
         return (
           <g
@@ -36,20 +37,31 @@ export const ZonesLayer: React.FC<ZonesLayerProps> = ({
             }}
             className="cursor-pointer group"
           >
-            {/* Zone Fill Box */}
-            <rect
-              x={zX}
-              y={zY}
-              width={zW}
-              height={zH}
-              rx={12}
-              fill={zone.color}
-              fillOpacity={isSelected ? 0.2 : 0.08}
-              stroke={isSelected ? '#9333EA' : zone.color}
-              strokeWidth={isSelected ? 3 : 1.5}
-              strokeDasharray="4 4"
-              className="transition-all group-hover:fill-opacity-15"
-            />
+            {hasPath ? (
+              <path
+                d={zone.pathSvg}
+                fill={zone.color}
+                fillOpacity={isSelected ? 0.2 : 0.08}
+                stroke={isSelected ? '#9333EA' : zone.color}
+                strokeWidth={isSelected ? 3 : 1.5}
+                strokeDasharray="4 4"
+                className="transition-all group-hover:fill-opacity-15"
+              />
+            ) : (
+              <rect
+                x={zX}
+                y={zY}
+                width={zW}
+                height={zH}
+                rx={12}
+                fill={zone.color}
+                fillOpacity={isSelected ? 0.2 : 0.08}
+                stroke={isSelected ? '#9333EA' : zone.color}
+                strokeWidth={isSelected ? 3 : 1.5}
+                strokeDasharray="4 4"
+                className="transition-all group-hover:fill-opacity-15"
+              />
+            )}
 
             {/* Zone Label compensated for SVG scale(1, -1) */}
             <g transform={`translate(${zX + 12}, ${zY + zH - 20}) scale(1, -1)`}>

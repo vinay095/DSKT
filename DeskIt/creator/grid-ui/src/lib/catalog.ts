@@ -37,5 +37,13 @@ export function catalogToLibraryItems(catalog: LibraryCatalog): LibraryItem[] {
 
 export function assetUrl(svg?: string): string | undefined {
   if (!svg) return undefined;
+  // Custom shapes store generated SVG as a data URL — do not prefix /assets/.
+  if (
+    svg.startsWith('data:') ||
+    svg.trimStart().startsWith('<svg') ||
+    svg.trimStart().startsWith('<?xml')
+  ) {
+    return svg.startsWith('data:') ? svg : undefined;
+  }
   return `/assets/${svg}`;
 }

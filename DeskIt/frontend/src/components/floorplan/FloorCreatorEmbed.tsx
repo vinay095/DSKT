@@ -1,14 +1,22 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ExternalLink, Maximize2, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import {
   DESKIT_CREATOR_READY_EVENT,
+  DESKIT_LOAD_DOCUMENT_EVENT,
+  DESKIT_PUBLISHED_FLOOR_DOC_KEY,
   DESKIT_PUBLISH_EVENT,
+  DESKIT_REQUEST_DOCUMENT_EVENT,
   getFloorCreatorUrl,
   HOSTED_FLOOR_CREATOR_URL,
   isCreatorUrlSameOriginAsDeskIt,
   LOCAL_CREATOR_URL,
 } from '../../lib/floorCreator';
 import { FloorDocumentV2 } from '../../types/floorDocument';
+import {
+  loadDraftFloorDocument,
+  loadPublishedFloorDocument,
+  publishedFloorDocKey,
+} from '../../lib/publishedFloor';
 import { cn } from '../../lib/cn';
 
 interface FloorCreatorEmbedProps {
@@ -18,9 +26,18 @@ interface FloorCreatorEmbedProps {
   onPublished?: (doc: FloorDocumentV2) => void;
 }
 
+function resolveDocForFloor(floorId?: string): FloorDocumentV2 | null {
+  if (!floorId) return loadPublishedFloorDocument();
+  // Prefer draft while editing, then live published map for this floor
+  return loadDraftFloorDocument(floorId) || loadPublishedFloorDocument(floorId);
+}
+
 /**
  * Embeds the Creator floor planner (creator/grid-ui on :5174) inside DeskIt Admin.
  * Never uses a same-origin relative URL — that recursively loads DeskIt itself.
+ *
+ * Cross-origin bridge: Creator cannot read DeskIt localStorage, so on ready / request
+ * we postMessage the FloorDocument scoped to floorId into the iframe.
  */
 export const FloorCreatorEmbed: React.FC<FloorCreatorEmbedProps> = ({
   className,
@@ -40,10 +57,26 @@ export const FloorCreatorEmbed: React.FC<FloorCreatorEmbedProps> = ({
   const [publishNotice, setPublishNotice] = useState<string | null>(null);
   const [creatorReady, setCreatorReady] = useState(false);
   const readyTimerRef = useRef<number | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const openInNewTab = (url = creatorUrl) => {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
+
+  const pushDocumentToCreator = useCallback(() => {
+    const win = iframeRef.current?.contentWindow;
+    if (!win) return;
+    const document = resolveDocForFloor(floorId);
+    win.postMessage(
+      {
+        type: DESKIT_LOAD_DOCUMENT_EVENT,
+        floorId,
+        officeId,
+        document,
+      },
+      '*',
+    );
+  }, [floorId, officeId]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -59,6 +92,13 @@ export const FloorCreatorEmbed: React.FC<FloorCreatorEmbedProps> = ({
           window.clearTimeout(readyTimerRef.current);
           readyTimerRef.current = null;
         }
+        // Push per-floor doc once Creator announces ready (cross-origin store)
+        pushDocumentToCreator();
+        return;
+      }
+
+      if (data.type === DESKIT_REQUEST_DOCUMENT_EVENT) {
+        pushDocumentToCreator();
         return;
       }
 
@@ -71,7 +111,14 @@ export const FloorCreatorEmbed: React.FC<FloorCreatorEmbedProps> = ({
     };
 
     const handleStorage = (e: StorageEvent) => {
-      if (e.key !== 'deskit_published_floor_document_v2' || !e.newValue) return;
+      const floorKey = floorId ? publishedFloorDocKey(floorId) : null;
+      if (
+        e.key !== DESKIT_PUBLISHED_FLOOR_DOC_KEY &&
+        e.key !== floorKey
+      ) {
+        return;
+      }
+      if (!e.newValue) return;
       try {
         const doc = JSON.parse(e.newValue) as FloorDocumentV2;
         setPublishNotice('Published — live for Employee & HR (this floor)');
@@ -88,7 +135,7 @@ export const FloorCreatorEmbed: React.FC<FloorCreatorEmbedProps> = ({
       window.removeEventListener('message', handleMessage);
       window.removeEventListener('storage', handleStorage);
     };
-  }, [onPublished]);
+  }, [onPublished, pushDocumentToCreator, floorId]);
 
   useEffect(() => {
     if (sameOriginTrap || hasError) return;
@@ -126,6 +173,12 @@ export const FloorCreatorEmbed: React.FC<FloorCreatorEmbedProps> = ({
       window.removeEventListener('message', onReady);
     };
   }, [creatorUrl, sameOriginTrap, hasError]);
+
+  // If floor changes while iframe stays mounted (rare — URL usually remounts), re-push
+  useEffect(() => {
+    if (!creatorReady) return;
+    pushDocumentToCreator();
+  }, [floorId, officeId, creatorReady, pushDocumentToCreator]);
 
   return (
     <div
@@ -237,6 +290,7 @@ npm run dev
           </div>
         ) : (
           <iframe
+            ref={iframeRef}
             title="DeskIt Floor Planner"
             src={creatorUrl}
             className="absolute inset-0 w-full h-full border-0"

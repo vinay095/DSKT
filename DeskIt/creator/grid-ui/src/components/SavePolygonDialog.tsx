@@ -3,10 +3,15 @@ import {
   CUSTOM_ELEMENT_CATEGORIES,
   getCategoryStyle,
 } from '../lib/categoryStyles';
+import type { OutlineVertex } from '../types/geometry';
 
 interface SavePolygonDialogProps {
   open: boolean;
   defaultLabel: string;
+  /** Relative finest outline of the pending custom polygon (for silhouette preview). */
+  outline?: OutlineVertex[];
+  widthCells?: number;
+  heightCells?: number;
   onSave: (opts: {
     label: string;
     category: string;
@@ -22,6 +27,9 @@ interface SavePolygonDialogProps {
 const SavePolygonDialog: React.FC<SavePolygonDialogProps> = ({
   open,
   defaultLabel,
+  outline,
+  widthCells,
+  heightCells,
   onSave,
   onCancel,
 }) => {
@@ -48,6 +56,23 @@ const SavePolygonDialog: React.FC<SavePolygonDialogProps> = ({
     [resolvedCategory],
   );
   const previewColor = colorMode === 'inherit' ? inherited.fill : customColor;
+
+  const silhouette = useMemo(() => {
+    if (!outline || outline.length < 3) return null;
+    const cols = outline.map((v) => v.col);
+    const rows = outline.map((v) => v.row);
+    const minC = Math.min(...cols);
+    const maxC = Math.max(...cols);
+    const minR = Math.min(...rows);
+    const maxR = Math.max(...rows);
+    const vbW = Math.max(maxC - minC, widthCells ?? 1, 1);
+    const vbH = Math.max(maxR - minR, heightCells ?? 1, 1);
+    const [first, ...rest] = outline;
+    let d = `M${first.col - minC},${first.row - minR}`;
+    for (const v of rest) d += ` L${v.col - minC},${v.row - minR}`;
+    d += ' Z';
+    return { vbW, vbH, d };
+  }, [outline, widthCells, heightCells]);
 
   if (!open) return null;
 
@@ -143,14 +168,46 @@ const SavePolygonDialog: React.FC<SavePolygonDialogProps> = ({
           <div
             style={{
               marginTop: 8,
-              height: 28,
+              height: 72,
               borderRadius: 8,
-              background: previewColor,
+              background: '#0F172A08',
               border: `2px solid ${inherited.stroke}`,
-              opacity: inherited.fillOpacity + 0.3,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden',
             }}
-            title="Preview"
-          />
+            title="Shape preview"
+          >
+            {silhouette ? (
+              <svg
+                viewBox={`0 0 ${silhouette.vbW} ${silhouette.vbH}`}
+                width="100%"
+                height="100%"
+                style={{ maxWidth: 120, maxHeight: 64, padding: 6 }}
+                aria-hidden
+              >
+                <path
+                  d={silhouette.d}
+                  fill={previewColor}
+                  fillOpacity={Math.min(inherited.fillOpacity + 0.35, 0.9)}
+                  stroke={inherited.stroke}
+                  strokeWidth={Math.max(silhouette.vbW, silhouette.vbH) * 0.03}
+                  strokeLinejoin="round"
+                />
+              </svg>
+            ) : (
+              <div
+                style={{
+                  width: '70%',
+                  height: 28,
+                  borderRadius: 8,
+                  background: previewColor,
+                  opacity: inherited.fillOpacity + 0.3,
+                }}
+              />
+            )}
+          </div>
         </fieldset>
 
         <div className="prop-actions">

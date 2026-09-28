@@ -8,6 +8,10 @@ export const DEFAULT_FLOOR_CREATOR_URL = LOCAL_CREATOR_URL;
 export const DESKIT_PUBLISHED_FLOOR_DOC_KEY = 'deskit_published_floor_document_v2';
 export const DESKIT_PUBLISH_EVENT = 'deskit:floor-document-published';
 export const DESKIT_CREATOR_READY_EVENT = 'deskit:creator-ready';
+/** Parent → Creator iframe: push the FloorDocument for the active floor. */
+export const DESKIT_LOAD_DOCUMENT_EVENT = 'deskit:load-floor-document';
+/** Creator → parent: ask DeskIt for the FloorDocument for floorId (cross-origin). */
+export const DESKIT_REQUEST_DOCUMENT_EVENT = 'deskit:request-floor-document';
 
 export function getFloorCreatorUrl(opts?: {
   floorId?: string;

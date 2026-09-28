@@ -6,6 +6,77 @@ import { DEFAULT_FLOOR_CONFIG } from '../geometry/grid';
 
 const FINEST_PER_A = 16;
 
+/** Absolute finest cells covered by a compact region (outline or solid AABB). */
+function regionToAbsoluteCells(r: {
+  origin: { col: number; row: number };
+  widthCells: number;
+  heightCells: number;
+  outline?: { col: number; row: number }[];
+}): { col: number; row: number }[] {
+  const cells: { col: number; row: number }[] = [];
+  const outline = r.outline;
+  if (outline && outline.length >= 3) {
+    // Ray-cast relative cell centers against relative outline
+    for (let row = 0; row < r.heightCells; row++) {
+      for (let col = 0; col < r.widthCells; col++) {
+        const px = col + 0.5;
+        const py = row + 0.5;
+        let inside = false;
+        for (let i = 0, j = outline.length - 1; i < outline.length; j = i++) {
+          const xi = outline[i].col;
+          const yi = outline[i].row;
+          const xj = outline[j].col;
+          const yj = outline[j].row;
+          if (yi > py === yj > py) continue;
+          const xInt = ((xj - xi) * (py - yi)) / (yj - yi) + xi;
+          if (px < xInt) inside = !inside;
+        }
+        if (inside) {
+          cells.push({ col: r.origin.col + col, row: r.origin.row + row });
+        }
+      }
+    }
+    return cells;
+  }
+  for (let row = 0; row < r.heightCells; row++) {
+    for (let col = 0; col < r.widthCells; col++) {
+      cells.push({ col: r.origin.col + col, row: r.origin.row + row });
+    }
+  }
+  return cells;
+}
+
+/**
+ * SVG path in world units for UnusableLayer / ZonesLayer consumers.
+ * Outline vertices are relative finest cells; scale by a/16.
+ */
+function regionToPathSvg(
+  r: {
+    origin: { col: number; row: number };
+    widthCells: number;
+    heightCells: number;
+    outline?: { col: number; row: number }[];
+  },
+  a: number,
+): string {
+  const f = a / FINEST_PER_A;
+  const outline = r.outline;
+  if (outline && outline.length >= 2) {
+    const [first, ...rest] = outline;
+    let d = `M ${(r.origin.col + first.col) * f} ${(r.origin.row + first.row) * f}`;
+    for (const v of rest) {
+      d += ` L ${(r.origin.col + v.col) * f} ${(r.origin.row + v.row) * f}`;
+    }
+    d += ' Z';
+    return d;
+  }
+  const x = r.origin.col * f;
+  const y = r.origin.row * f;
+  const w = r.widthCells * f;
+  const h = r.heightCells * f;
+  return `M ${x} ${y} L ${x + w} ${y} L ${x + w} ${y + h} L ${x} ${y + h} Z`;
+}
+
 function isAssignable(e: FloorDocEntity): boolean {
   const type = (e.elementType || '').toLowerCase();
   const cat = (e.category || '').toLowerCase();
@@ -117,6 +188,8 @@ export function floorDocumentToFloorPlan(
       height: z.heightCells / 4,
       color: z.color,
       department: z.label || 'General',
+      cells: regionToAbsoluteCells(z),
+      pathSvg: regionToPathSvg(z, a),
     })),
     rooms: previous?.rooms || [],
     walls: previous?.walls || [],
@@ -124,8 +197,8 @@ export function floorDocumentToFloorPlan(
     unusableRegions: (doc.unusableRegions || []).map((r) => ({
       id: r.id,
       name: r.label,
-      cells: r.outline || [],
-      pathSvg: '',
+      cells: regionToAbsoluteCells(r),
+      pathSvg: regionToPathSvg(r, a),
     })),
   };
 }

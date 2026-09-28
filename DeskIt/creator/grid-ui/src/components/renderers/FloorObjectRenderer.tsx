@@ -10,6 +10,8 @@ import { PhoneBoothRenderer } from './PhoneBoothRenderer';
 import { PillarRenderer } from './PillarRenderer';
 import { CabinRenderer } from './CabinRenderer';
 import { GenericFurnitureRenderer } from './GenericFurnitureRenderer';
+import { StorageRenderer } from './StorageRenderer';
+import { DisplayRenderer } from './DisplayRenderer';
 import {
   pickDetailLevel,
   resolveObjectKind,
@@ -28,7 +30,10 @@ export interface FloorObjectRendererProps {
   detail?: 'simple' | 'detailed';
 }
 
-/** Known kinds use procedural architectural vectors (geometry-independent). */
+/**
+ * True when we have a dedicated procedural silhouette for this type.
+ * Catalog SVG is still preferred when available — procedural is the fallback.
+ */
 export function usesProceduralVisual(
   category?: string,
   elementType?: string,
@@ -36,24 +41,37 @@ export function usesProceduralVisual(
   return resolveObjectKind(category, elementType) !== 'generic';
 }
 
-const KIND_COMPONENT: Record<
-  FloorObjectKind,
-  React.FC<FloorObjectVisualProps>
-> = {
+const KIND_COMPONENT: Record<FloorObjectKind, React.FC<FloorObjectVisualProps>> = {
   desk: DeskRenderer,
+  corner_desk: DeskRenderer,
+  monitor: DeskRenderer,
   chair: ChairRenderer,
+  task_chair: ChairRenderer,
+  guest_chair: ChairRenderer,
+  meeting_chair: ChairRenderer,
+  armchair: ChairRenderer,
+  lounge_chair: ChairRenderer,
+  bar_stool: ChairRenderer,
+  couch: ChairRenderer,
+  loveseat: ChairRenderer,
+  sectional: ChairRenderer,
   meeting_table: MeetingTableRenderer,
+  conference_table: MeetingTableRenderer,
+  round_table: MeetingTableRenderer,
+  square_table: MeetingTableRenderer,
+  display: DisplayRenderer,
   plant: PlantRenderer,
   restroom: RestroomRenderer,
   phone_booth: PhoneBoothRenderer,
   pillar: PillarRenderer,
   cabin: CabinRenderer,
-  storage: GenericFurnitureRenderer,
+  storage: StorageRenderer,
   generic: GenericFurnitureRenderer,
 };
 
 /**
  * Visual layer only. Place/scale/rotate remain the caller's geometry responsibility.
+ * Passes elementType so family renderers can pick the right subtype silhouette.
  */
 export const FloorObjectRenderer: React.FC<FloorObjectRendererProps> = memo(
   ({
@@ -80,6 +98,8 @@ export const FloorObjectRenderer: React.FC<FloorObjectRendererProps> = memo(
         strokeWidth={style.strokeWidth}
         renderState={renderState}
         detail={resolvedDetail}
+        elementType={elementType}
+        category={category}
       />
     );
   },

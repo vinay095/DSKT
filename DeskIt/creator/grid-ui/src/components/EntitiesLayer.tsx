@@ -9,6 +9,7 @@ import {
   truncateLabel,
 } from '../geometry/labels';
 import { FloorObjectRenderer } from './renderers';
+import StyledCatalogSvg from './StyledCatalogSvg';
 
 interface EntitiesLayerProps {
   entities: Entity[];
@@ -168,14 +169,26 @@ const EntitiesLayer: React.FC<EntitiesLayerProps> = ({
               />
             )}
             <g transform={`translate(${cx}, ${cy}) rotate(${rot}) translate(${-w / 2}, ${-h / 2})`}>
-              <FloorObjectRenderer
-                width={w}
-                height={h}
-                category={e.category}
-                elementType={e.elementType}
-                color={e.color}
-                renderState={selected ? 'selected' : 'default'}
-              />
+              {e.svg ? (
+                <StyledCatalogSvg
+                  svgFile={e.svg}
+                  category={e.category}
+                  elementType={e.elementType}
+                  entityColor={e.color}
+                  width={w}
+                  height={h}
+                  renderState={selected ? 'selected' : 'default'}
+                />
+              ) : (
+                <FloorObjectRenderer
+                  width={w}
+                  height={h}
+                  category={e.category}
+                  elementType={e.elementType}
+                  color={e.color}
+                  renderState={selected ? 'selected' : 'default'}
+                />
+              )}
               {/* Hit target — keep placement/drag reliable over sparse vectors */}
               <rect x={0} y={0} width={w} height={h} fill="transparent" />
             </g>

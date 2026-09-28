@@ -34,6 +34,10 @@ import {
 import { ColorHierarchyLegend } from '../common/ColorHierarchyLegend';
 import { PageHeader } from '../common/PageHeader';
 import { PeopleTeams } from '../people/PeopleTeams';
+import { TeamAreaAssignBar } from '../floorplan/TeamAreaAssignBar';
+import { getTeamByName } from '../../data/teams';
+import { applyTeamToDesk } from '../../lib/teamAssignment';
+import { deskFromEntity, isAssignable } from '../../lib/publishedFloor';
 import type { GoToFloorMapArgs } from '../people/EmployeeDrawer';
 import type { FloorOption } from '../../types/office';
 import type { DbEmployee } from '../../types/database';
@@ -42,6 +46,8 @@ interface HrDashboardProps {
   floorPlan: FloorPlan;
   searchQuery: string;
   onUpdateDesk: (updatedDesk: DeskElement) => void;
+  /** Bulk desk updates (area-select team assign). Falls back to per-desk updates. */
+  onUpdateDesks?: (updatedDesks: DeskElement[]) => void;
   activeTab?: string;
   publishedDocument?: FloorDocumentV2 | null;
   floors?: FloorOption[];
@@ -55,6 +61,7 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
   floorPlan,
   searchQuery,
   onUpdateDesk,
+  onUpdateDesks,
   activeTab = 'dashboard',
   publishedDocument = null,
   floors = [],
@@ -86,6 +93,10 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
     employeeName?: string;
     notes?: string;
   } | null>(null);
+  const [areaSelectMode, setAreaSelectMode] = useState(false);
+  const [areaSelectedIds, setAreaSelectedIds] = useState<string[]>([]);
+  const [areaTeamName, setAreaTeamName] = useState('');
+  const [areaAssignMsg, setAreaAssignMsg] = useState<string | null>(null);
 
   // Keep inspector in sync with live desk assignment state (without removing model data).
   useEffect(() => {
@@ -195,6 +206,103 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
     onUpdateDesk(updated);
     setInspectedDesk(updated);
   };
+
+  const persistDesks = (updatedDesks: DeskElement[]) => {
+    if (onUpdateDesks) {
+      onUpdateDesks(updatedDesks);
+      return;
+    }
+    for (const d of updatedDesks) onUpdateDesk(d);
+  };
+
+  const resolveDesksByIds = (ids: string[]) => {
+    const byKey = new Map<string, DeskElement>();
+    for (const d of floorPlan.desks) {
+      byKey.set(d.id, d);
+      if (d.geometry?.objectId) byKey.set(d.geometry.objectId, d);
+    }
+    const result: DeskElement[] = [];
+    const seen = new Set<string>();
+    for (const id of ids) {
+      const existing = byKey.get(id);
+      if (existing) {
+        if (!seen.has(existing.id)) {
+          seen.add(existing.id);
+          result.push(existing);
+        }
+        continue;
+      }
+      const ent = publishedDocument?.entities.find((e) => e.objectId === id);
+      if (ent && isAssignable(ent)) {
+        const synthesized = deskFromEntity(ent);
+        if (!seen.has(synthesized.id)) {
+          seen.add(synthesized.id);
+          result.push(synthesized);
+        }
+      }
+    }
+    return result;
+  };
+
+  const handleApplyTeamToSelection = (clear = false) => {
+    if (!guard('canAllocateSeat', clear ? 'clear team on seats' : 'assign team to seats')) return;
+    if (!areaSelectedIds.length) return;
+    const team = clear ? null : getTeamByName(areaTeamName) ?? null;
+    if (!clear && !team) {
+      setAreaAssignMsg('Choose a team first.');
+      window.setTimeout(() => setAreaAssignMsg(null), 2500);
+      return;
+    }
+    const targets = resolveDesksByIds(areaSelectedIds);
+    if (!targets.length) {
+      setAreaAssignMsg('No seats found for the current selection.');
+      window.setTimeout(() => setAreaAssignMsg(null), 2500);
+      return;
+    }
+    const updated = targets.map((d) => applyTeamToDesk(d, team));
+    persistDesks(updated);
+    const label = clear ? 'Cleared team on' : `Assigned ${team!.name} to`;
+    setAreaAssignMsg(`${label} ${updated.length} seat${updated.length === 1 ? '' : 's'}.`);
+    window.setTimeout(() => setAreaAssignMsg(null), 3000);
+  };
+
+  const areaAssignBar =
+    canAllocateSeat && publishedDocument ? (
+      <div className="space-y-1.5">
+        <TeamAreaAssignBar
+          selectionMode={areaSelectMode}
+          onToggleSelectionMode={() => {
+            setAreaSelectMode((v) => {
+              if (v) setAreaSelectedIds([]);
+              return !v;
+            });
+          }}
+          selectedCount={areaSelectedIds.length}
+          onClearSelection={() => setAreaSelectedIds([])}
+          selectedTeamName={areaTeamName}
+          onSelectedTeamNameChange={setAreaTeamName}
+          onApplyTeam={() => handleApplyTeamToSelection(false)}
+          onClearTeam={() => handleApplyTeamToSelection(true)}
+        />
+        {areaAssignMsg && (
+          <p className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 px-1">
+            {areaAssignMsg}
+          </p>
+        )}
+      </div>
+    ) : null;
+
+  const publishedMapSelectionProps = areaSelectMode
+    ? {
+        selectionMode: true as const,
+        selectedDeskIds: areaSelectedIds,
+        onSelectedDeskIdsChange: setAreaSelectedIds,
+      }
+    : {
+        selectionMode: false as const,
+        selectedDeskIds: areaSelectedIds.length ? areaSelectedIds : undefined,
+        onSelectedDeskIdsChange: setAreaSelectedIds,
+      };
 
   const metricsSection = (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -343,9 +451,10 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
 
   const allocationMapSection = (
     <div className="space-y-3">
-      <div className="flex justify-end shrink-0">
+      <div className="flex flex-wrap items-center justify-between gap-2 shrink-0">
         <ColorHierarchyLegend compact />
       </div>
+      {areaAssignBar}
 
       {publishedDocument ? (
         <div className="flex flex-col lg:flex-row gap-4">
@@ -365,6 +474,7 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
             hideFooterLegend
             showMapLabels={false}
             className="flex-1 min-h-[min(50vh,480px)] max-h-[min(62vh,640px)] h-[min(55vh,560px)]"
+            {...publishedMapSelectionProps}
           />
           <PropertiesPanel
             selectedDesk={inspectedDesk}
@@ -410,9 +520,10 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
     <div className="space-y-3 flex-1 min-h-0 flex flex-col">
       <PageHeader
         title="Floor map"
-        description="View seats and floor elements. Click anything for details in the inspector. Use Seat Allocations to assign people or request layout changes."
+        description="View seats and floor elements. Click for details. Use Select area to highlight seats and assign them to a team."
         actions={<ColorHierarchyLegend compact />}
       />
+      {areaAssignBar}
       {publishedDocument ? (
         <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-[min(65vh,600px)]">
           <PublishedFloorMap
@@ -431,6 +542,7 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
             hideFooterLegend
             showMapLabels={false}
             className="flex-1 min-h-[min(55vh,520px)] h-[min(68vh,700px)]"
+            {...publishedMapSelectionProps}
           />
           <PropertiesPanel
             selectedDesk={inspectedDesk}
@@ -605,7 +717,7 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
       <div className="space-y-6 pb-8">
         <PageHeader
           title="Seat Allocation"
-          description="Employee-first: search a person and pick a free seat. Seat-first: click a desk on the map → Assign in the inspector. Both update the same floor assignment state."
+          description="Employee-first: search a person and pick a free seat. Seat-first: click a desk → Assign in the inspector. Area-select: Select area → drag seats → Assign to team."
         />
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
           <div className="xl:col-span-1">

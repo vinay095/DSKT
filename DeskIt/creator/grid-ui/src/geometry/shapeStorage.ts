@@ -26,7 +26,7 @@ export type CompactRegion = {
 
 /**
  * Drop collinear mid-edge vertices; keep only corner vertices of a closed ring.
- * Consecutive vertices imply edges — no separate edges[] field.
+ * Consecutive vertices imply edges â€” no separate edges[] field.
  */
 export function simplifyCollinear(outline: OutlineVertex[]): OutlineVertex[] {
   if (outline.length < 3) return outline.map((v) => ({ ...v }));
@@ -412,7 +412,7 @@ export function normalizeUnusable(
   };
 }
 
-/** Rotate relative outline 90° CCW within AABB; returns new outline + swapped dims. */
+/** Rotate relative outline 90Â° CCW within AABB; returns new outline + swapped dims. */
 export function rotateOutline90CCW(
   outline: OutlineVertex[],
   widthCells: number,
@@ -519,6 +519,8 @@ export function resolvePolygonEntity(
       ...rest,
       outline: built.outline,
       svgPath: outlineToSvgPath(built.outline),
+      // Keep generated silhouette SVG from library for Preview / catalog styling.
+      svg: lib.svg ?? _s,
       widthCells: built.widthCells,
       heightCells: built.heightCells,
     };
@@ -766,3 +768,4 @@ export function bakeLibraryOntoEntities(
     return resolvePolygonEntity(e, [entry]);
   });
 }
+

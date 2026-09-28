@@ -186,6 +186,36 @@ export const Layout: React.FC = () => {
     });
   };
 
+  /** Bulk desk update (e.g. area-select → assign team). Single localStorage write. */
+  const handleUpdateDesks = (updatedDesks: DeskElement[]) => {
+    if (!guard('canAllocateSeat', 'update seat assignments')) return;
+    if (!updatedDesks.length) return;
+    setCurrentFloorPlan((prev) => {
+      const byId = new Map(updatedDesks.map((d) => [d.id, d]));
+      const seen = new Set<string>();
+      const desks = prev.desks.map((d) => {
+        const next = byId.get(d.id);
+        if (next) {
+          seen.add(d.id);
+          return next;
+        }
+        return d;
+      });
+      for (const d of updatedDesks) {
+        if (!seen.has(d.id) && !prev.desks.some((x) => x.id === d.id)) {
+          desks.push(d);
+        }
+      }
+      const updated: FloorPlan = {
+        ...prev,
+        desks,
+        lastModified: new Date().toISOString(),
+      };
+      savePublishedToStorage(updated);
+      return updated;
+    });
+  };
+
   const handlePublishFloorPlan = (fp: FloorPlan) => {
     // AdminDashboard uses this for publish and clone-apply.
     if (!canPublishFloorPlan && !canCloneFloorPlan) {
@@ -252,6 +282,7 @@ export const Layout: React.FC = () => {
             floorPlan={currentFloorPlan}
             searchQuery={searchQuery}
             onUpdateDesk={handleUpdateDesk}
+            onUpdateDesks={handleUpdateDesks}
             activeTab="floorplan"
             publishedDocument={publishedDoc}
             floors={floors}
@@ -353,6 +384,7 @@ export const Layout: React.FC = () => {
           floorPlan={currentFloorPlan}
           searchQuery={searchQuery}
           onUpdateDesk={handleUpdateDesk}
+          onUpdateDesks={handleUpdateDesks}
           activeTab={activeTab}
           publishedDocument={publishedDoc}
           floors={floors}
