@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { FloorDocument } from '../lib/drafts';
 import { normalizeDocument } from '../lib/drafts';
 import { floorWorldHeight, floorWorldWidth } from '../types/geometry';
@@ -23,6 +23,10 @@ interface PrettyFloorViewProps {
 
 type Cam = { zoom: number; panX: number; panY: number };
 
+const FIT_PAD = 32;
+const MAX_ZOOM = 80;
+const PAN_EPS = 1e-4;
+
 const PrettyFloorView: React.FC<PrettyFloorViewProps> = ({
   document: rawDoc,
   onBack,
@@ -40,44 +44,39 @@ const PrettyFloorView: React.FC<PrettyFloorViewProps> = ({
   const [cam, setCam] = useState<Cam>({ zoom: 1, panX: 0, panY: 0 });
   const [publishMsg, setPublishMsg] = useState<string | null>(null);
   const dragRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
-  const didInitialFit = useRef(false);
+  const sizeRef = useRef({ w: 800, h: 600 });
+  const fitZoomRef = useRef(1);
+  const camRef = useRef(cam);
+  camRef.current = cam;
 
-  useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver((entries) => {
-      const { width: w, height: h } = entries[0].contentRect;
-      setSize({ w, h });
-    });
-    ro.observe(el);
-    const { width: w, height: h } = el.getBoundingClientRect();
-    setSize({ w, h });
-    return () => ro.disconnect();
-  }, []);
-
-  const applyFit = () => {
-    if (size.w < 10 || size.h < 10) return;
-    const pad = 32;
-    const zoom = Math.min((size.w - pad * 2) / width, (size.h - pad * 2) / height);
+  const fitToSize = (w: number, h: number) => {
+    if (w < 10 || h < 10 || width <= 0 || height <= 0) return;
+    const raw = Math.min((w - FIT_PAD * 2) / width, (h - FIT_PAD * 2) / height);
+    const zoom = Math.max(raw, 0.01);
+    fitZoomRef.current = zoom;
     setCam({
-      zoom: Math.max(zoom, 0.01),
-      panX: (size.w - width * zoom) / 2,
-      panY: (size.h - height * zoom) / 2,
+      zoom,
+      panX: (w - width * zoom) / 2,
+      panY: (h - height * zoom) / 2,
     });
   };
 
-  // Fit once when canvas is ready; re-fit only when floor dimensions change (not every resize)
-  useEffect(() => {
-    didInitialFit.current = false;
-  }, [width, height]);
-
-  useEffect(() => {
-    if (size.w < 10 || size.h < 10) return;
-    if (didInitialFit.current) return;
-    didInitialFit.current = true;
-    applyFit();
+  useLayoutEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const apply = () => {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      sizeRef.current = { w, h };
+      setSize({ w, h });
+      fitToSize(w, h);
+    };
+    const ro = new ResizeObserver(() => apply());
+    ro.observe(el);
+    apply();
+    return () => ro.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [size.w, size.h, width, height]);
+  }, [width, height]);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -88,10 +87,11 @@ const PrettyFloorView: React.FC<PrettyFloorViewProps> = ({
       const rect = el.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
+      const minZ = fitZoomRef.current;
       setCam((c) => {
         const worldX = (mx - c.panX) / c.zoom;
         const worldY = (my - c.panY) / c.zoom;
-        const zoom = clampZoom(c.zoom * factor, 0.02, 80);
+        const zoom = clampZoom(c.zoom * factor, minZ, MAX_ZOOM);
         return {
           zoom,
           panX: mx - worldX * zoom,
@@ -104,15 +104,18 @@ const PrettyFloorView: React.FC<PrettyFloorViewProps> = ({
   }, []);
 
   const zoomAtCenter = (factor: number) => {
-    const mx = size.w / 2;
-    const my = size.h / 2;
+    const mx = sizeRef.current.w / 2;
+    const my = sizeRef.current.h / 2;
+    const minZ = fitZoomRef.current;
     setCam((c) => {
       const worldX = (mx - c.panX) / c.zoom;
       const worldY = (my - c.panY) / c.zoom;
-      const zoom = clampZoom(c.zoom * factor, 0.02, 80);
+      const zoom = clampZoom(c.zoom * factor, minZ, MAX_ZOOM);
       return { zoom, panX: mx - worldX * zoom, panY: my - worldY * zoom };
     });
   };
+
+  const applyFit = () => fitToSize(sizeRef.current.w, sizeRef.current.h);
 
   const zoneShapes = useMemo(
     () =>
@@ -185,7 +188,7 @@ const PrettyFloorView: React.FC<PrettyFloorViewProps> = ({
           {floor.cols}×{floor.rows}
         </span>
         <span className="panel-hint" style={{ marginLeft: 12 }}>
-          Scroll to zoom · drag to pan · matches published look
+          Scroll to zoom · drag to pan when zoomed in · matches published look
         </span>
         <div className="toolbar-spacer" />
         {publishMsg && (
@@ -214,11 +217,12 @@ const PrettyFloorView: React.FC<PrettyFloorViewProps> = ({
         ref={wrapRef}
         onMouseDown={(e) => {
           if (e.button !== 0) return;
+          if (camRef.current.zoom <= fitZoomRef.current + PAN_EPS) return;
           dragRef.current = {
             x: e.clientX,
             y: e.clientY,
-            panX: cam.panX,
-            panY: cam.panY,
+            panX: camRef.current.panX,
+            panY: camRef.current.panY,
           };
         }}
         onMouseMove={(e) => {

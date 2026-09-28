@@ -619,6 +619,7 @@ body,
   position: relative;
   cursor: grab;
   min-height: 0;
+  touch-action: none;
 }
 
 .pretty-canvas:active {
@@ -739,6 +740,7 @@ body,
   overflow: hidden;
   position: relative;
   min-width: 0;
+  touch-action: none;
 }
 
 .grid-nav-x {
@@ -995,6 +997,120 @@ body,
 
 .modal-body li + li {
   margin-top: 4px;
+}
+
+.save-polygon-dialog {
+  width: min(420px, 100%);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.save-polygon-dialog__header {
+  padding: 20px 24px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.save-polygon-dialog__header h2 {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.save-polygon-dialog__header .panel-hint {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.save-polygon-dialog__body {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.save-polygon-dialog__body .prop-field {
+  margin-bottom: 0;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.save-polygon-dialog__body .prop-field input {
+  height: 34px;
+  padding: 0 10px;
+}
+
+.save-polygon-dialog__section {
+  margin: 0;
+  padding: 12px 14px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.save-polygon-dialog__section legend {
+  padding: 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.save-polygon-dialog__section .radio-row {
+  margin-bottom: 0;
+}
+
+.save-polygon-dialog__select,
+.save-polygon-dialog__input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.save-polygon-dialog__color {
+  width: 48px;
+  height: 32px;
+  border: none;
+  cursor: pointer;
+  background: transparent;
+}
+
+.save-polygon-dialog__preview {
+  margin-top: 4px;
+  height: 88px;
+  border-radius: 10px;
+  background: #0f172a08;
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 12px;
+}
+
+.save-polygon-dialog__preview svg {
+  max-width: 140px;
+  max-height: 64px;
+}
+
+.save-polygon-dialog__preview-fallback {
+  width: 70%;
+  height: 28px;
+  border-radius: 8px;
+}
+
+.save-polygon-dialog__actions {
+  margin: 0;
+  padding: 14px 24px 20px;
+  border-top: 1px solid var(--border);
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 @media (max-width: 960px) {

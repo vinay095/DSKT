@@ -1,6 +1,7 @@
-import React from 'react';
-import type { CellRef, FloorConfig } from '../types/geometry';
-import { cellToWorldRect, isCellOnFloor } from '../geometry/grid';
+import React, { useMemo } from 'react';
+import type { CellRef, FloorConfig, GridCell } from '../types/geometry';
+import { cellToWorldRect, getLevelCellSize, isCellOnFloor } from '../geometry/grid';
+import { cellsToMergedRects } from '../geometry/cellMerge';
 
 interface CellHighlightProps {
   hoveredCell: CellRef | null;
@@ -15,9 +16,28 @@ const CellHighlight: React.FC<CellHighlightProps> = ({
   floor,
   a,
 }) => {
-  const selectedKeys = new Set(
-    selectedCells.map((c) => `${c.level}:${c.col}:${c.row}`),
-  );
+  const selectedKeys = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of selectedCells) {
+      set.add(`${c.level}:${c.col}:${c.row}`);
+    }
+    return set;
+  }, [selectedCells]);
+
+  const selectedRects = useMemo(() => {
+    const byLevel = new Map<number, GridCell[]>();
+    for (const c of selectedCells) {
+      if (!isCellOnFloor(c, floor)) continue;
+      const list = byLevel.get(c.level) ?? [];
+      list.push({ col: c.col, row: c.row });
+      byLevel.set(c.level, list);
+    }
+    const rects = [];
+    for (const [level, cells] of byLevel) {
+      rects.push(...cellsToMergedRects(cells, getLevelCellSize(level, a)));
+    }
+    return rects;
+  }, [selectedCells, floor, a]);
 
   const hoverOnFloor =
     hoveredCell &&
@@ -42,23 +62,20 @@ const CellHighlight: React.FC<CellHighlightProps> = ({
           );
         })()}
 
-      {selectedCells.filter((c) => isCellOnFloor(c, floor)).map((cell) => {
-        const r = cellToWorldRect(cell, a);
-        return (
-          <rect
-            key={`${cell.level}:${cell.col}:${cell.row}`}
-            x={r.x}
-            y={r.y}
-            width={r.width}
-            height={r.height}
-            className="cell-selected"
-            strokeWidth={1.5}
-            vectorEffect="non-scaling-stroke"
-          />
-        );
-      })}
+      {selectedRects.map((r, i) => (
+        <rect
+          key={i}
+          x={r.x}
+          y={r.y}
+          width={r.width}
+          height={r.height}
+          className="cell-selected"
+          strokeWidth={1.5}
+          vectorEffect="non-scaling-stroke"
+        />
+      ))}
     </g>
   );
 };
 
-export default CellHighlight;
+export default React.memo(CellHighlight);

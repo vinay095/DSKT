@@ -55,9 +55,10 @@ const HowToUseModal: React.FC<HowToUseModalProps> = ({ open, onClose }) => {
             <ul>
               <li>
                 <strong>Select</strong> and <strong>Pan</strong> are independent toggles. Enable one
-                or both. With only Select: drag to select cells / entities (no pan). With only Pan:
-                drag to pan (no selection). Enable both to pan empty canvas and select at the same
-                time. Hold Space to pan temporarily.
+                or both. With only Select: drag empty canvas to box-select entities (or cells if none
+                hit); Ctrl/Cmd+drag always selects cells. With only Pan: drag to pan (no selection).
+                Enable both to pan empty canvas and select at the same time. Hold Space to pan
+                temporarily.
               </li>
               <li>
                 First quadrant only: cannot pan into x &lt; 0 or y &lt; 0. Outside the designated
@@ -91,8 +92,9 @@ const HowToUseModal: React.FC<HowToUseModalProps> = ({ open, onClose }) => {
             <h3>Cells, zones &amp; unusable</h3>
             <ul>
               <li>
-                <strong>Ctrl+drag</strong> always selects cells (even over furniture) for zones /
-                polygons / unusable. Shift+click for multi-entity select.
+                Plain drag selects entities when the box hits any; otherwise cells.{" "}
+                <strong>Ctrl/Cmd+drag</strong> always selects cells (even over furniture) for zones /
+                polygons / unusable. Shift+click or Shift+drag for multi-entity select.
               </li>
               <li>
                 Zone label prompt uses <strong>team-1</strong> as placeholder only.

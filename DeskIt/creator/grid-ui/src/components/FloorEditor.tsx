@@ -55,11 +55,14 @@ import {
 import { snapPointToGrid, snapToGrid } from '../geometry/snapping';
 import {
   cloneEntity,
+  clampTranslateDelta,
   createId,
   entitiesInCells,
+  entitiesIntersectingRect,
   entityWorldRect,
   hitTestEntity,
   isPolygonEntity,
+  rectsIntersect,
   rotateEntity90CCW,
   translateEntity,
 } from '../geometry/entities';
@@ -157,10 +160,15 @@ type DragMode =
       startWorld: Point;
       currentWorld: Point;
       additive: boolean;
+      /** Ctrl/Cmd marquee always selects cells; plain marquee prefers entities. */
+      cellsOnly: boolean;
     }
   | {
       type: 'move';
       startWorld: Point;
+      /** Shallow snapshot of the full entity list for undo/cancel. */
+      beforeEntities: Entity[];
+      /** Deep clones of moved entities only (AABB origin for delta). */
       originEntities: Entity[];
       ids: string[];
     }
@@ -275,6 +283,8 @@ const FloorEditor: React.FC<FloorEditorProps> = ({
   const dragRef = useRef<DragMode>(null);
   const pinchRef = useRef<{ dist: number; zoom: number } | null>(null);
   const movedRef = useRef(false);
+  const cursorRafRef = useRef<number | null>(null);
+  const pendingCursorRef = useRef<Point | null>(null);
 
   useEffect(() => {
     viewportRef.current = viewport;
@@ -469,16 +479,27 @@ const FloorEditor: React.FC<FloorEditorProps> = ({
   }, [floor, svgSize, setClampedViewport]);
 
   useEffect(() => {
-    const svg = svgRef.current;
-    if (!svg) return;
+    const el = containerRef.current;
+    if (!el) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
+      const svg = svgRef.current;
+      if (!svg) return;
+      const target = e.target as Node | null;
+      if (target && target !== svg && !svg.contains(target)) return;
       const rect = svg.getBoundingClientRect();
       const cursor = { x: e.clientX - rect.left, y: e.clientY - rect.top };
       applyZoom(wheelZoomFactor(e.deltaY), cursor);
     };
-    svg.addEventListener('wheel', onWheel, { passive: false });
-    return () => svg.removeEventListener('wheel', onWheel);
+    const preventGesture = (e: Event) => e.preventDefault();
+    el.addEventListener('wheel', onWheel, { passive: false });
+    el.addEventListener('gesturestart', preventGesture as EventListener);
+    el.addEventListener('gesturechange', preventGesture as EventListener);
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      el.removeEventListener('gesturestart', preventGesture as EventListener);
+      el.removeEventListener('gesturechange', preventGesture as EventListener);
+    };
   }, [applyZoom]);
 
   useEffect(() => {
@@ -491,6 +512,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({
     };
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 2) {
+        e.preventDefault();
         pinchRef.current = { dist: touchDist(e.touches), zoom: viewportRef.current.zoom };
       }
     };
@@ -508,7 +530,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({
     const onTouchEnd = () => {
       pinchRef.current = null;
     };
-    svg.addEventListener('touchstart', onTouchStart, { passive: true });
+    svg.addEventListener('touchstart', onTouchStart, { passive: false });
     svg.addEventListener('touchmove', onTouchMove, { passive: false });
     svg.addEventListener('touchend', onTouchEnd);
     return () => {
@@ -1083,10 +1105,18 @@ const FloorEditor: React.FC<FloorEditorProps> = ({
           (ent) => idSet.has(ent.objectId) && !ent.locked,
         );
         if (movable.length === 0) return;
+        const { dCol: cCol, dRow: cRow } = clampTranslateDelta(
+          movable,
+          dCol,
+          dRow,
+          floorFinestCols(floorRef.current),
+          floorFinestRows(floorRef.current),
+        );
+        if (cCol === 0 && cRow === 0) return;
         const moveIds = new Set(movable.map((e) => e.objectId));
         setEntities(
           entitiesRef.current.map((ent) =>
-            moveIds.has(ent.objectId) ? translateEntity(ent, dCol, dRow) : ent,
+            moveIds.has(ent.objectId) ? translateEntity(ent, cCol, cRow) : ent,
           ),
         );
       }
@@ -1139,7 +1169,11 @@ const FloorEditor: React.FC<FloorEditorProps> = ({
     dragRef.current = {
       type: 'move',
       startWorld: world,
-      originEntities: entitiesRef.current.map((ent) => cloneEntity(ent, ent.objectId)),
+      beforeEntities: entitiesRef.current.slice(),
+      originEntities: moveIds.map((oid) => {
+        const ent = entitiesRef.current.find((x) => x.objectId === oid)!;
+        return cloneEntity(ent, ent.objectId);
+      }),
       ids: moveIds,
     };
   };
@@ -1163,6 +1197,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({
         startWorld: world,
         currentWorld: world,
         additive: e.shiftKey,
+        cellsOnly: true,
       };
       setMarqueeRect({ x: world.x, y: world.y, width: 0, height: 0 });
       return;
@@ -1191,13 +1226,14 @@ const FloorEditor: React.FC<FloorEditorProps> = ({
       return;
     }
 
-    // Select-only: empty drag starts cell marquee (no Ctrl required)
+    // Select-only: empty drag starts marquee (entities if any, else cells)
     if (selectEnabled && e.button === 0 && !hit) {
       dragRef.current = {
         type: 'marquee',
         startWorld: world,
         currentWorld: world,
         additive: e.shiftKey,
+        cellsOnly: false,
       };
       setMarqueeRect({ x: world.x, y: world.y, width: 0, height: 0 });
     }
@@ -1205,9 +1241,19 @@ const FloorEditor: React.FC<FloorEditorProps> = ({
 
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     const world = clientToWorld(e.clientX, e.clientY);
-    setCursorWorld(world);
-
     const drag = dragRef.current;
+
+    // Skip cursor state during marquee/move; otherwise rAF-throttle updates
+    if (!drag || drag.type === 'pan') {
+      pendingCursorRef.current = world;
+      if (cursorRafRef.current == null) {
+        cursorRafRef.current = requestAnimationFrame(() => {
+          cursorRafRef.current = null;
+          if (pendingCursorRef.current) setCursorWorld(pendingCursorRef.current);
+        });
+      }
+    }
+
     if (!drag) return;
 
     if (drag.type === 'pan') {
@@ -1237,13 +1283,23 @@ const FloorEditor: React.FC<FloorEditorProps> = ({
         dx = snapToGrid(dx, snapSizeWorld);
         dy = snapToGrid(dy, snapSizeWorld);
       }
-      const dCol = Math.round(dx / finestSize);
-      const dRow = Math.round(dy / finestSize);
-      const idSet = new Set(drag.ids);
-      const moved = drag.originEntities.map((ent) =>
-        idSet.has(ent.objectId) ? translateEntity(ent, dCol, dRow) : ent,
+      let dCol = Math.round(dx / finestSize);
+      let dRow = Math.round(dy / finestSize);
+      const clamped = clampTranslateDelta(
+        drag.originEntities,
+        dCol,
+        dRow,
+        floorFinestCols(floorRef.current),
+        floorFinestRows(floorRef.current),
       );
-      // Preview move; validity checked on mouse-up
+      dCol = clamped.dCol;
+      dRow = clamped.dRow;
+      const byId = new Map(drag.originEntities.map((ent) => [ent.objectId, ent]));
+      const moved = drag.beforeEntities.map((ent) => {
+        const origin = byId.get(ent.objectId);
+        return origin ? translateEntity(origin, dCol, dRow) : ent;
+      });
+      // Preview move; unusable validity checked on mouse-up
       replaceEntities(moved);
       return;
     }
@@ -1282,6 +1338,18 @@ const FloorEditor: React.FC<FloorEditorProps> = ({
         }
         return;
       }
+      if (!drag.cellsOnly) {
+        const hits = entitiesIntersectingRect(entitiesRef.current, rect, a);
+        if (hits.length > 0) {
+          const ids = hits.map((e) => e.objectId);
+          setSelectedIds((prev) =>
+            drag.additive ? Array.from(new Set([...prev, ...ids])) : ids,
+          );
+          setSelectedCells([]);
+          setShowEntityMenu(true);
+          return;
+        }
+      }
       const cells = cellsInWorldRect(rect, gridLevel, a, floor);
       setSelectedCells((prev) => mergeCells(prev, cells, drag.additive));
       if (!drag.additive) setSelectedIds([]);
@@ -1296,10 +1364,10 @@ const FloorEditor: React.FC<FloorEditorProps> = ({
         .filter((e) => idSet.has(e.objectId))
         .every((e) => entityFitsFloor(e));
       if (!ok) {
-        replaceEntities(drag.originEntities);
+        replaceEntities(drag.beforeEntities);
         showToast('Cannot move onto unusable cells or outside the floor.');
       } else {
-        commitDrag(drag.originEntities);
+        commitDrag(drag.beforeEntities);
       }
       return;
     }
@@ -1498,17 +1566,41 @@ const FloorEditor: React.FC<FloorEditorProps> = ({
   const cursorPos = worldToCell(cursorWorld, gridLevel, a);
 
   const selectionHasUnusable = useMemo(() => {
-    if (selectedCells.length === 0) return false;
-    const finest = selectedCellsToFinest(selectedCells, a);
-    return finest.some((c) =>
-      unusableRegions.some((r) => finestCellInRegion(c.col, c.row, r)),
-    );
+    if (selectedCells.length === 0 || unusableRegions.length === 0) return false;
+    const f = a / FINEST_PER_A;
+    for (const cell of selectedCells) {
+      const wr = cellToWorldRect(cell, a);
+      for (const r of unusableRegions) {
+        const ur = {
+          x: r.origin.col * f,
+          y: r.origin.row * f,
+          width: r.widthCells * f,
+          height: r.heightCells * f,
+        };
+        if (rectsIntersect(wr, ur)) return true;
+      }
+    }
+    return false;
   }, [selectedCells, a, unusableRegions]);
 
   const entitiesInSelectionCount = useMemo(() => {
     if (selectedCells.length === 0) return 0;
-    const finest = selectedCellsToFinest(selectedCells, a);
-    return entitiesInCells(entities, finest, a).length;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const cell of selectedCells) {
+      const wr = cellToWorldRect(cell, a);
+      minX = Math.min(minX, wr.x);
+      minY = Math.min(minY, wr.y);
+      maxX = Math.max(maxX, wr.x + wr.width);
+      maxY = Math.max(maxY, wr.y + wr.height);
+    }
+    return entitiesIntersectingRect(
+      entities,
+      { x: minX, y: minY, width: maxX - minX, height: maxY - minY },
+      a,
+    ).length;
   }, [selectedCells, a, entities]);
 
   const placePreview = useMemo(() => {
@@ -1521,6 +1613,12 @@ const FloorEditor: React.FC<FloorEditorProps> = ({
     origin = { col: Math.max(0, origin.col), row: Math.max(0, origin.row) };
 
     if (placeItem.cells?.length || placeItem.outline?.length) {
+      const outline =
+        placeItem.outline && placeItem.outline.length >= 3
+          ? placeItem.outline
+          : placeItem.cells?.length
+            ? cellsToOutline(placeItem.cells)
+            : undefined;
       const draft: Entity = {
         objectId: 'preview',
         category: placeItem.category,
@@ -1528,14 +1626,14 @@ const FloorEditor: React.FC<FloorEditorProps> = ({
         origin,
         widthCells: placeItem.widthCells,
         heightCells: placeItem.heightCells,
-        outline: placeItem.outline,
+        outline,
         placeLevel: placeItem.placeLevel ?? placeLevelForSize,
       };
       return {
         origin,
         widthCells: placeItem.widthCells,
         heightCells: placeItem.heightCells,
-        outline: placeItem.outline,
+        outline,
         fits: entityFitsFloor(draft),
         color: placeItem.color,
       };

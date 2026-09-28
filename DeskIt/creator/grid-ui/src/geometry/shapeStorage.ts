@@ -458,7 +458,11 @@ function findLibraryPolygon(
   );
 }
 
-/** Scale library outline to target AABB (non-uniform), then apply rotation. */
+/**
+ * Rebuild library outline for an instance AABB.
+ * Rotate at library size first (entity W×H is already in current orientation),
+ * then non-uniform scale to the target AABB.
+ */
 export function libraryRotatedDims(
   lib: { widthCells: number; heightCells: number; outline?: OutlineVertex[]; cells?: GridCell[] },
   rotation: 0 | 90 | 180 | 270,
@@ -473,16 +477,8 @@ export function libraryRotatedDims(
         : null;
   if (!outline || outline.length < 3) return null;
 
-  const sx = targetW / Math.max(1, lib.widthCells);
-  const sy = targetH / Math.max(1, lib.heightCells);
-  outline = simplifyCollinear(
-    outline.map((v) => ({
-      col: Math.round(v.col * sx),
-      row: Math.round(v.row * sy),
-    })),
-  );
-  let w = Math.max(1, Math.round(lib.widthCells * sx));
-  let h = Math.max(1, Math.round(lib.heightCells * sy));
+  let w = Math.max(1, lib.widthCells);
+  let h = Math.max(1, lib.heightCells);
   const turns = (((rotation % 360) + 360) % 360) / 90;
   for (let i = 0; i < turns; i++) {
     const r = rotateOutline90CCW(outline, w, h);
@@ -490,13 +486,25 @@ export function libraryRotatedDims(
     w = r.widthCells;
     h = r.heightCells;
   }
-  return { widthCells: w, heightCells: h, outline };
+
+  const sx = targetW / Math.max(1, w);
+  const sy = targetH / Math.max(1, h);
+  outline = simplifyCollinear(
+    outline.map((v) => ({
+      col: Math.round(v.col * sx),
+      row: Math.round(v.row * sy),
+    })),
+  );
+  return {
+    widthCells: Math.max(1, targetW),
+    heightCells: Math.max(1, targetH),
+    outline,
+  };
 }
 
 /**
  * Resolve library-backed polygon geometry onto the entity for runtime use.
- * When a library entry exists, always rebuild from it using the library's
- * authored size (uniform; no per-instance stretch).
+ * Library outline is always canonical; instance AABB (W×H) controls stretch.
  */
 export function resolvePolygonEntity(
   entity: Entity,
@@ -509,8 +517,8 @@ export function resolvePolygonEntity(
     const built = libraryRotatedDims(
       lib,
       rotation,
-      lib.widthCells,
-      lib.heightCells,
+      entity.widthCells,
+      entity.heightCells,
     );
     if (!built) return hydratePolygonEntity(entity);
 

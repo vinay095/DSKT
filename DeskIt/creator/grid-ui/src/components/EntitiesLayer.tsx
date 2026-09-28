@@ -2,6 +2,7 @@ import React from 'react';
 import type { Entity } from '../types/geometry';
 import { entityWorldRect } from '../geometry/entities';
 import { FINEST_PER_A } from '../geometry/grid';
+import { cellsToOutline, outlineToSvgPath } from '../geometry/shapeStorage';
 import {
   adaptiveLabelFontSize,
   maxLabelChars,
@@ -17,10 +18,20 @@ interface EntitiesLayerProps {
   onEntityPointerDown?: (id: string, e: React.MouseEvent) => void;
 }
 
+function entityShapePath(entity: Entity): string | null {
+  if (entity.svgPath && entity.svgPath.length > 2) return entity.svgPath;
+  if (entity.outline && entity.outline.length >= 3) {
+    return outlineToSvgPath(entity.outline);
+  }
+  if (entity.cells && entity.cells.length > 0) {
+    return outlineToSvgPath(cellsToOutline(entity.cells));
+  }
+  return null;
+}
+
 /**
- * Creator editor canvas: schematic AABB rectangles only.
- * Catalog SVGs / freeform silhouettes / procedural furniture art belong in
- * PrettyFloorView (Preview) and frontend PublishedFloorMap — not on the edit grid.
+ * Creator editor canvas: AABB for rect furniture; polygon outline when present.
+ * Catalog SVGs / procedural art stay in Preview.
  */
 const EntitiesLayer: React.FC<EntitiesLayerProps> = ({
   entities,
@@ -43,6 +54,7 @@ const EntitiesLayer: React.FC<EntitiesLayerProps> = ({
         const rot = e.rotation ?? 0;
         const w = bounds.width;
         const h = bounds.height;
+        const shapePath = entityShapePath(e);
 
         if (e.category === 'text') {
           const fontSize = (e.fontSize ?? 0.5) * a;
@@ -94,6 +106,9 @@ const EntitiesLayer: React.FC<EntitiesLayerProps> = ({
           max: a * 0.45,
         });
         const label = truncateLabel(rawLabel, maxLabelChars(w, fontSize));
+        const fillOpacity = selected ? 0.35 : 0.2;
+        const stroke = selected ? '#22c55e' : color;
+        const strokeWidth = selected ? 2 : 1.5;
 
         return (
           <g
@@ -102,17 +117,30 @@ const EntitiesLayer: React.FC<EntitiesLayerProps> = ({
             onMouseDown={(ev) => onEntityPointerDown?.(e.objectId, ev)}
             style={{ cursor: 'move' }}
           >
-            <rect
-              x={bounds.x}
-              y={bounds.y}
-              width={w}
-              height={h}
-              fill={color}
-              fillOpacity={selected ? 0.35 : 0.2}
-              stroke={selected ? '#22c55e' : color}
-              strokeWidth={selected ? 2 : 1.5}
-              vectorEffect="non-scaling-stroke"
-            />
+            {shapePath ? (
+              <path
+                d={shapePath}
+                transform={`translate(${bounds.x}, ${bounds.y}) scale(${f})`}
+                fill={color}
+                fillOpacity={fillOpacity}
+                stroke={stroke}
+                strokeWidth={strokeWidth}
+                strokeLinejoin="round"
+                vectorEffect="non-scaling-stroke"
+              />
+            ) : (
+              <rect
+                x={bounds.x}
+                y={bounds.y}
+                width={w}
+                height={h}
+                fill={color}
+                fillOpacity={fillOpacity}
+                stroke={stroke}
+                strokeWidth={strokeWidth}
+                vectorEffect="non-scaling-stroke"
+              />
+            )}
             <g
               transform={readableLabelTransform(cx, cy, rot)}
               pointerEvents="none"

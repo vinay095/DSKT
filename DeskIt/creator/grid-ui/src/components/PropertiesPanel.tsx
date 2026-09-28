@@ -104,7 +104,9 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           />
         </label>
         <p className="panel-hint">
-          Zoom grid: 2a → a → a/4 → a/16. Layout scale: {SCALE_LEVELS.join(' · ')}.
+          Zoom grid: 2a - a - a/4 - a/16. 
+		  <br />
+		  Layout scale: {SCALE_LEVELS.join(' - ')}.
         </p>
         <div className="prop-field">
           <span>Scale layout</span>

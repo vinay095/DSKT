@@ -323,7 +323,7 @@ describe('polygon library dedupe', () => {
     expect(saved.svgPath).toBeUndefined();
   });
 
-  it('same type shares identical JSON keys; resolve snaps size to library (no stretch)', () => {
+  it('same type different sizes → identical JSON keys; resolve stretches to each AABB', () => {
     const entities: Entity[] = [
       {
         objectId: 'poly-a',
@@ -376,25 +376,29 @@ describe('polygon library dedupe', () => {
     const keysA = Object.keys(saved.entities[0]).sort();
     const keysB = Object.keys(saved.entities[1]).sort();
     expect(keysA).toEqual(keysB);
+    expect(saved.entities[0].widthCells).toBe(184);
+    expect(saved.entities[0].heightCells).toBe(232);
+    expect(saved.entities[1].widthCells).toBe(552);
+    expect(saved.entities[1].heightCells).toBe(168);
     for (const e of saved.entities) {
       expect(e.outline).toBeUndefined();
       expect(e.svgPath).toBeUndefined();
       expect(e.svg).toBeUndefined();
       expect(e.cells).toBeUndefined();
-      // Stretched instance sizes snap back to library footprint
-      expect(e.widthCells).toBe(8);
-      expect(e.heightCells).toBe(4);
     }
     expect(saved.customLibrary[0].outline?.length).toBe(4);
+    expect(saved.customLibrary[0].widthCells).toBe(8);
+    expect(saved.customLibrary[0].heightCells).toBe(4);
 
     const loaded = saved.entities.map((e) =>
       resolvePolygonEntity(e, saved.customLibrary),
     );
-    expect(loaded[0].outline?.[1]).toEqual({ col: 8, row: 0 });
-    expect(loaded[0].widthCells).toBe(8);
-    expect(loaded[0].heightCells).toBe(4);
-    expect(loaded[1].widthCells).toBe(8);
-    expect(loaded[1].heightCells).toBe(4);
+    expect(loaded[0].widthCells).toBe(184);
+    expect(loaded[0].heightCells).toBe(232);
+    expect(loaded[0].outline?.[1]).toEqual({ col: 184, row: 0 });
+    expect(loaded[1].widthCells).toBe(552);
+    expect(loaded[1].heightCells).toBe(168);
+    expect(loaded[1].outline?.[1]).toEqual({ col: 552, row: 0 });
   });
 });
 

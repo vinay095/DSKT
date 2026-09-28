@@ -84,133 +84,126 @@ const SavePolygonDialog: React.FC<SavePolygonDialogProps> = ({
         aria-label="Save custom element"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <h2>Save custom element</h2>
-        <p className="panel-hint" style={{ marginTop: -4, marginBottom: 8 }}>
-          Geometry → generated SVG → reusable catalog (all drafts).
-        </p>
+        <header className="save-polygon-dialog__header">
+          <h2>Save custom element</h2>
+          <p className="panel-hint">
+            Geometry → generated SVG → reusable catalog (all drafts).
+          </p>
+        </header>
 
-        <label className="prop-field">
-          <span>Name</span>
-          <input
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            placeholder="e.g. L-shaped column"
-          />
-        </label>
+        <div className="save-polygon-dialog__body">
+          <label className="prop-field">
+            <span>Name</span>
+            <input
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="e.g. L-shaped column"
+            />
+          </label>
 
-        <fieldset className="prop-section">
-          <legend>Category</legend>
-          <label className="radio-row">
-            <input
-              type="radio"
-              checked={mode === 'preset'}
-              onChange={() => setMode('preset')}
-            />
-            Existing category
-          </label>
-          {mode === 'preset' && (
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              style={{ width: '100%', marginBottom: 8 }}
-            >
-              {CUSTOM_ELEMENT_CATEGORIES.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          )}
-          <label className="radio-row">
-            <input
-              type="radio"
-              checked={mode === 'new'}
-              onChange={() => setMode('new')}
-            />
-            Create new category
-          </label>
-          {mode === 'new' && (
-            <input
-              type="text"
-              placeholder="e.g. game_relaxation"
-              value={newCategory}
-              onChange={(e) => setNewCategory(e.target.value)}
-            />
-          )}
-        </fieldset>
-
-        <fieldset className="prop-section">
-          <legend>Color</legend>
-          <label className="radio-row">
-            <input
-              type="radio"
-              checked={colorMode === 'inherit'}
-              onChange={() => setColorMode('inherit')}
-            />
-            Inherit from category ({inherited.fill})
-          </label>
-          <label className="radio-row">
-            <input
-              type="radio"
-              checked={colorMode === 'custom'}
-              onChange={() => setColorMode('custom')}
-            />
-            Custom color
-          </label>
-          {colorMode === 'custom' && (
-            <input
-              type="color"
-              value={customColor}
-              onChange={(e) => setCustomColor(e.target.value)}
-              style={{ width: 48, height: 28, border: 'none', cursor: 'pointer' }}
-            />
-          )}
-          <div
-            style={{
-              marginTop: 8,
-              height: 72,
-              borderRadius: 8,
-              background: '#0F172A08',
-              border: `2px solid ${inherited.stroke}`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              overflow: 'hidden',
-            }}
-            title="Shape preview"
-          >
-            {silhouette ? (
-              <svg
-                viewBox={`0 0 ${silhouette.vbW} ${silhouette.vbH}`}
-                width="100%"
-                height="100%"
-                style={{ maxWidth: 120, maxHeight: 64, padding: 6 }}
-                aria-hidden
+          <fieldset className="prop-section save-polygon-dialog__section">
+            <legend>Category</legend>
+            <label className="radio-row">
+              <input
+                type="radio"
+                checked={mode === 'preset'}
+                onChange={() => setMode('preset')}
+              />
+              Existing category
+            </label>
+            {mode === 'preset' && (
+              <select
+                className="save-polygon-dialog__select"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
               >
-                <path
-                  d={silhouette.d}
-                  fill={previewColor}
-                  fillOpacity={Math.min(inherited.fillOpacity + 0.35, 0.9)}
-                  stroke={inherited.stroke}
-                  strokeWidth={Math.max(silhouette.vbW, silhouette.vbH) * 0.03}
-                  strokeLinejoin="round"
-                />
-              </svg>
-            ) : (
-              <div
-                style={{
-                  width: '70%',
-                  height: 28,
-                  borderRadius: 8,
-                  background: previewColor,
-                  opacity: inherited.fillOpacity + 0.3,
-                }}
+                {CUSTOM_ELEMENT_CATEGORIES.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            )}
+            <label className="radio-row">
+              <input
+                type="radio"
+                checked={mode === 'new'}
+                onChange={() => setMode('new')}
+              />
+              Create new category
+            </label>
+            {mode === 'new' && (
+              <input
+                type="text"
+                className="save-polygon-dialog__input"
+                placeholder="e.g. game_relaxation"
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
               />
             )}
-          </div>
-        </fieldset>
+          </fieldset>
 
-        <div className="prop-actions">
+          <fieldset className="prop-section save-polygon-dialog__section">
+            <legend>Color</legend>
+            <label className="radio-row">
+              <input
+                type="radio"
+                checked={colorMode === 'inherit'}
+                onChange={() => setColorMode('inherit')}
+              />
+              Inherit from category ({inherited.fill})
+            </label>
+            <label className="radio-row">
+              <input
+                type="radio"
+                checked={colorMode === 'custom'}
+                onChange={() => setColorMode('custom')}
+              />
+              Custom color
+            </label>
+            {colorMode === 'custom' && (
+              <input
+                type="color"
+                value={customColor}
+                onChange={(e) => setCustomColor(e.target.value)}
+                className="save-polygon-dialog__color"
+              />
+            )}
+            <div
+              className="save-polygon-dialog__preview"
+              style={{ borderColor: inherited.stroke }}
+              title="Shape preview"
+            >
+              {silhouette ? (
+                <svg
+                  viewBox={`0 0 ${silhouette.vbW} ${silhouette.vbH}`}
+                  width="100%"
+                  height="100%"
+                  aria-hidden
+                >
+                  <path
+                    d={silhouette.d}
+                    fill={previewColor}
+                    fillOpacity={Math.min(inherited.fillOpacity + 0.35, 0.9)}
+                    stroke={inherited.stroke}
+                    strokeWidth={Math.max(silhouette.vbW, silhouette.vbH) * 0.03}
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              ) : (
+                <div
+                  className="save-polygon-dialog__preview-fallback"
+                  style={{
+                    background: previewColor,
+                    opacity: inherited.fillOpacity + 0.3,
+                  }}
+                />
+              )}
+            </div>
+          </fieldset>
+        </div>
+
+        <div className="save-polygon-dialog__actions prop-actions">
           <button type="button" className="toolbar-btn ghost" onClick={onCancel}>
             Cancel
           </button>

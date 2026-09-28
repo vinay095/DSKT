@@ -1,9 +1,16 @@
-import type { Entity, GridCell, Point, Rect } from '../types/geometry';
+import type {
+  CustomLibraryEntry,
+  Entity,
+  GridCell,
+  Point,
+  Rect,
+} from '../types/geometry';
 import { FINEST_PER_A } from './grid';
 import {
   cellsToOutline,
   outlineToCells,
   outlineToSvgPath,
+  resolvePolygonEntity,
   rotateOutline90CCW,
 } from './shapeStorage';
 
@@ -70,6 +77,34 @@ export function translateEntity(entity: Entity, dCol: number, dRow: number): Ent
   };
 }
 
+/**
+ * Clamp a shared translation so every entity's AABB stays inside
+ * [0, maxCol) × [0, maxRow) in finest cells.
+ */
+export function clampTranslateDelta(
+  entities: Entity[],
+  dCol: number,
+  dRow: number,
+  maxCol: number,
+  maxRow: number,
+): { dCol: number; dRow: number } {
+  if (entities.length === 0) return { dCol: 0, dRow: 0 };
+  let loCol = -Infinity;
+  let hiCol = Infinity;
+  let loRow = -Infinity;
+  let hiRow = Infinity;
+  for (const e of entities) {
+    loCol = Math.max(loCol, -e.origin.col);
+    hiCol = Math.min(hiCol, maxCol - e.widthCells - e.origin.col);
+    loRow = Math.max(loRow, -e.origin.row);
+    hiRow = Math.min(hiRow, maxRow - e.heightCells - e.origin.row);
+  }
+  return {
+    dCol: Math.max(loCol, Math.min(hiCol, dCol)),
+    dRow: Math.max(loRow, Math.min(hiRow, dRow)),
+  };
+}
+
 export type EntityRotation = 0 | 90 | 180 | 270;
 
 /** Rotate entity 90° anticlockwise around its center; swaps AABB for rects. */
@@ -129,6 +164,35 @@ export function cloneEntity(entity: Entity, objectId: string): Entity {
     cells: entity.cells?.map((c) => ({ ...c })),
     outline: entity.outline?.map((v) => ({ ...v })),
   };
+}
+
+/**
+ * AABB-only resize for polygons. Library-backed instances drop baked geometry
+ * so the next resolve rebuilds from the library outline stretched to the AABB.
+ */
+export function resizePolygonEntity(
+  entity: Entity,
+  next: { origin: GridCell; widthCells: number; heightCells: number },
+  library?: CustomLibraryEntry[],
+): Entity {
+  const resized: Entity = {
+    ...entity,
+    origin: { ...next.origin },
+    widthCells: Math.max(1, next.widthCells),
+    heightCells: Math.max(1, next.heightCells),
+  };
+  const libHit = library?.some(
+    (item) =>
+      item.category === entity.category &&
+      item.elementType === entity.elementType &&
+      ((item.outline && item.outline.length >= 3) ||
+        (item.cells && item.cells.length > 0)),
+  );
+  if (libHit) {
+    const { outline: _o, cells: _c, svgPath: _p, svg: _s, ...rest } = resized;
+    return resolvePolygonEntity(rest, library);
+  }
+  return resized;
 }
 
 export function createId(prefix = 'e'): string {
