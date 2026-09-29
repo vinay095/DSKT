@@ -1,0 +1,36 @@
+spring:
+  main:
+    allow-bean-definition-overriding: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  flyway:
+    enabled: true
+  cache:
+    type: redis
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    prometheus:
+      enabled: true
+
+deskit:
+  security:
+    dev-login-enabled: true
+    jwt:
+      secret: test-deskit-jwt-secret-key-at-least-32b
+  rate-limit:
+    enabled: false
+  ops:
+    open-api-public: true
+    prometheus-public: true
+
+logging:
+  level:
+    com.deskit: DEBUG
+    org.testcontainers: INFO

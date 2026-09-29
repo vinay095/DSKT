@@ -1,0 +1,30 @@
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/deskit}
+    username: ${DATABASE_USERNAME:deskit}
+    password: ${DATABASE_PASSWORD:deskit}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    show-sql: false
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      # docker-compose maps Redis to host 6380 (see docker-compose.yml)
+      port: ${REDIS_PORT:6380}
+
+deskit:
+  security:
+    dev-login-enabled: ${DESKIT_DEV_LOGIN_ENABLED:true}
+    jwt:
+      secret: ${APP_JWT_SECRET:local-deskit-dev-jwt-secret-key-min-32-bytes}
+  ops:
+    open-api-public: true
+    prometheus-public: true
+  rate-limit:
+    enabled: ${DESKIT_RATE_LIMIT_ENABLED:true}
+    requests-per-window: ${DESKIT_RATE_LIMIT_RPM:300}
+
+logging:
+  level:
+    com.deskit: DEBUG
+    org.springframework.security: DEBUG

@@ -1,0 +1,51 @@
+# Production profile — no dev login, locked docs/metrics, stricter rate limits
+spring:
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${DATABASE_POOL_SIZE:10}
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+  jpa:
+    show-sql: false
+
+management:
+  endpoint:
+    health:
+      show-details: never
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
+deskit:
+  security:
+    dev-login-enabled: false
+    jwt:
+      secret: ${APP_JWT_SECRET}
+  ops:
+    open-api-public: false
+    prometheus-public: ${DESKIT_PROMETHEUS_PUBLIC:false}
+  rate-limit:
+    enabled: true
+    requests-per-window: ${DESKIT_RATE_LIMIT_RPM:60}
+    auth-requests-per-window: ${DESKIT_RATE_LIMIT_AUTH_RPM:10}
+  harden:
+    postgis-sync-enabled: ${DESKIT_POSTGIS_SYNC_ENABLED:true}
+
+server:
+  error:
+    include-message: never
+    include-stacktrace: never
+
+logging:
+  level:
+    root: WARN
+    com.deskit: INFO
+    org.springframework.security: WARN

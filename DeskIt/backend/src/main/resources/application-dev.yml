@@ -1,0 +1,31 @@
+# Shared-dev profile: point DATABASE_URL at Supabase Postgres.
+# Add OIDC registrations via env / override file when ready, e.g.:
+#   SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_MICROSOFT_CLIENT_ID=...
+#   SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_MICROSOFT_CLIENT_SECRET=...
+#   SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_MICROSOFT_ISSUER_URI=https://login.microsoftonline.com/{tenant}/v2.0
+spring:
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+
+deskit:
+  security:
+    # Prefer real SSO in shared-dev; set DESKIT_DEV_LOGIN_ENABLED=true to unlock seeded logins
+    dev-login-enabled: ${DESKIT_DEV_LOGIN_ENABLED:false}
+  ops:
+    open-api-public: true
+    prometheus-public: true
+  rate-limit:
+    enabled: true
+    requests-per-window: 300
+
+logging:
+  level:
+    com.deskit: INFO
