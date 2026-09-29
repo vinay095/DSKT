@@ -5,7 +5,11 @@
 /** Button +/- step (≈10%). */
 export const ZOOM_BUTTON_FACTOR = 1.1;
 
-/** Shared clamp range for HR / Employee / legacy viewers. */
+/**
+ * Absolute fallback before first fit.
+ * Runtime min for floor maps matches Creator: fit-to-floor for the current pane
+ * (see PublishedFloorMap fitZoomRef / useViewport minZoomRef).
+ */
 export const ZOOM_MIN = 0.15;
 export const ZOOM_MAX = 8;
 

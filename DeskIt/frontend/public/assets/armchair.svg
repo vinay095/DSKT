@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Armchair top-down -->
+  <ellipse cx="32" cy="58" rx="18" ry="3" fill="#3F1F1F" opacity="0.12"/>
+  <ellipse cx="32" cy="36" rx="18" ry="16" fill="#6B3A3A" stroke="#3F1F1F" stroke-width="1.5"/>
+  <path d="M16 28 Q32 10 48 28 L42 34 Q32 18 22 34 Z" fill="#5A3030" stroke="#3F1F1F" stroke-width="1"/>
+  <ellipse cx="12" cy="38" rx="5" ry="9" fill="#5A3030"/>
+  <ellipse cx="52" cy="38" rx="5" ry="9" fill="#5A3030"/>
+  <ellipse cx="32" cy="40" rx="9" ry="6" fill="#FFFFFF" opacity="0.08"/>
+</svg>

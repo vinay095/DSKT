@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Medium square stairs with treads + up arrow -->
+  <rect x="4" y="4" width="56" height="56" rx="2" fill="#CBD5E1" stroke="#475569" stroke-width="1.5"/>
+  <line x1="4" y1="18" x2="60" y2="18" stroke="#64748B" stroke-width="1.2"/>
+  <line x1="4" y1="32" x2="60" y2="32" stroke="#64748B" stroke-width="1.2"/>
+  <line x1="4" y1="46" x2="60" y2="46" stroke="#64748B" stroke-width="1.2"/>
+  <path d="M32 50 L32 18 M24 28 L32 18 L40 28" fill="none" stroke="#334155" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -318,7 +318,7 @@ export const Layout: React.FC = () => {
             }}
             selectedDeskId={viewDesk?.id}
             selectedEntityId={viewMapElement?.objectId}
-            className="flex-1 min-h-[min(55vh,520px)]"
+            className="flex-1 min-h-0 h-[min(65vh,600px)]"
           />
           <PropertiesPanel
             selectedDesk={viewDesk}
@@ -341,7 +341,7 @@ export const Layout: React.FC = () => {
             No published SVG map yet for this floor — showing desk layout. Publish from Creator
             (Preview → Publish) to go live.
           </p>
-          <div className="flex-1 min-h-[min(60vh,560px)]">
+          <div className="flex-1 min-h-0 h-[min(60vh,560px)]">
             <FloorPlanViewer floorPlan={currentFloorPlan} searchQuery={searchQuery} />
           </div>
         </div>

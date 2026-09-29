@@ -1,5 +1,6 @@
 /** Local Creator Vite app — must run separately from DeskIt frontend. */
 export const LOCAL_CREATOR_URL = 'http://localhost:5174/';
+/** Hosted Creator (grid-ui) — https://dskt.vercel.app/ */
 export const HOSTED_FLOOR_CREATOR_URL = 'https://dskt.vercel.app/';
 
 /** @deprecated Prefer LOCAL_CREATOR_URL — relative /creator/ can recurse into DeskIt itself. */
@@ -18,11 +19,14 @@ export function getFloorCreatorUrl(opts?: {
   officeId?: string;
 }): string {
   const fromEnv = import.meta.env.VITE_FLOOR_CREATOR_URL?.trim();
+  // Local `npm run dev` → localhost Creator. Production builds → hosted grid (dskt.vercel.app).
   const base = fromEnv
     ? fromEnv.endsWith('/')
       ? fromEnv
       : `${fromEnv}/`
-    : LOCAL_CREATOR_URL;
+    : import.meta.env.DEV
+      ? LOCAL_CREATOR_URL
+      : HOSTED_FLOOR_CREATOR_URL;
   if (!opts?.floorId && !opts?.officeId) return base;
   const url = new URL(base, typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
   if (opts.floorId) url.searchParams.set('floorId', opts.floorId);

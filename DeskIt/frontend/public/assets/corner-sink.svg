@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Corner sink (L counter + basin) -->
+  <path d="M6 6 H58 V28 H28 V58 H6 Z" fill="#7DD3FC" stroke="#0369A1" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M10 10 H54 V24 H24 V54 H10 Z" fill="#E0F2FE" opacity="0.45"/>
+  <ellipse cx="22" cy="22" rx="10" ry="8" fill="#BAE6FD" stroke="#0284C7" stroke-width="1.3"/>
+  <circle cx="22" cy="22" r="2.2" fill="#0369A1" opacity="0.55"/>
+  <rect x="18" y="10" width="8" height="5" rx="1.2" fill="#0369A1" opacity="0.45"/>
+</svg>

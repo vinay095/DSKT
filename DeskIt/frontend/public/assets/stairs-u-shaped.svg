@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- U-shaped stairs -->
+  <path d="M6 6 H58 V28 H42 V20 H22 V44 H42 V36 H58 V58 H6 Z" fill="#CBD5E1" stroke="#475569" stroke-width="1.5" stroke-linejoin="round"/>
+  <line x1="14" y1="6" x2="14" y2="28" stroke="#64748B" stroke-width="1"/>
+  <line x1="22" y1="6" x2="22" y2="20" stroke="#64748B" stroke-width="1"/>
+  <line x1="42" y1="6" x2="42" y2="20" stroke="#64748B" stroke-width="1"/>
+  <line x1="50" y1="6" x2="50" y2="28" stroke="#64748B" stroke-width="1"/>
+  <line x1="14" y1="36" x2="14" y2="58" stroke="#64748B" stroke-width="1"/>
+  <line x1="22" y1="44" x2="22" y2="58" stroke="#64748B" stroke-width="1"/>
+  <line x1="42" y1="44" x2="42" y2="58" stroke="#64748B" stroke-width="1"/>
+  <line x1="50" y1="36" x2="50" y2="58" stroke="#64748B" stroke-width="1"/>
+  <path d="M32 12 L32 52 M25 44 L32 52 L39 44" fill="none" stroke="#334155" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -42,11 +42,13 @@ function App() {
     [],
   );
 
-  // Tell parent DeskIt shell that this iframe is the real floor planner (not DeskIt itself)
+  // Tell parent DeskIt shell (iframe) and/or opener (Open planner / Full window) that
+  // this is the real floor planner and request the FloorDocument for this floor.
   useEffect(() => {
-    const announce = () => {
-      if (window.parent && window.parent !== window) {
-        window.parent.postMessage(
+    const notifyHost = (target: Window | null | undefined) => {
+      if (!target || target === window) return;
+      try {
+        target.postMessage(
           {
             type: DESKIT_CREATOR_READY_EVENT,
             app: 'creator-grid-ui',
@@ -55,9 +57,8 @@ function App() {
           },
           '*',
         );
-        // Cross-origin: parent holds the canonical store — request the doc for this floor
         if (floorCtx.floorId) {
-          window.parent.postMessage(
+          target.postMessage(
             {
               type: DESKIT_REQUEST_DOCUMENT_EVENT,
               floorId: floorCtx.floorId,
@@ -66,6 +67,17 @@ function App() {
             '*',
           );
         }
+      } catch {
+        /* ignore closed / inaccessible targets */
+      }
+    };
+
+    const announce = () => {
+      if (window.parent && window.parent !== window) notifyHost(window.parent);
+      try {
+        notifyHost(window.opener as Window | null);
+      } catch {
+        /* opener access can throw in rare cases */
       }
     };
     announce();

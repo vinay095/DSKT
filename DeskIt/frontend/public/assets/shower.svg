@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Shower stall top-down -->
+  <rect x="6" y="6" width="52" height="52" rx="4" fill="#7DD3FC" stroke="#0369A1" stroke-width="1.6"/>
+  <rect x="12" y="12" width="40" height="40" rx="3" fill="#E0F2FE" opacity="0.5" stroke="#0284C7" stroke-width="1"/>
+  <circle cx="46" cy="46" r="3.5" fill="#0369A1" opacity="0.45"/>
+  <circle cx="32" cy="20" r="5" fill="none" stroke="#0284C7" stroke-width="1.2"/>
+  <line x1="32" y1="12" x2="32" y2="15" stroke="#0369A1" stroke-width="1.5"/>
+</svg>

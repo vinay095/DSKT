@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Large / long stairs -->
+  <rect x="10" y="4" width="44" height="56" rx="2" fill="#CBD5E1" stroke="#475569" stroke-width="1.5"/>
+  <line x1="10" y1="12" x2="54" y2="12" stroke="#64748B" stroke-width="1"/>
+  <line x1="10" y1="20" x2="54" y2="20" stroke="#64748B" stroke-width="1"/>
+  <line x1="10" y1="28" x2="54" y2="28" stroke="#64748B" stroke-width="1"/>
+  <line x1="10" y1="36" x2="54" y2="36" stroke="#64748B" stroke-width="1"/>
+  <line x1="10" y1="44" x2="54" y2="44" stroke="#64748B" stroke-width="1"/>
+  <line x1="10" y1="52" x2="54" y2="52" stroke="#64748B" stroke-width="1"/>
+  <path d="M32 54 L32 10 M25 20 L32 10 L39 20" fill="none" stroke="#334155" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

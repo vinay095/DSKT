@@ -56,18 +56,34 @@ export function publishFloorDocument(
       localStorage.setItem(publishedFloorDocKey(ctx.floorId), payload);
     }
 
-    // Notify same-window listeners (if any) and parent DeskIt shell
+    // Notify same-window listeners (if any), parent DeskIt shell, and opener (popup mode)
     window.dispatchEvent(new CustomEvent(DESKIT_PUBLISH_EVENT, { detail: doc }));
-    if (window.parent && window.parent !== window) {
-      window.parent.postMessage(
-        {
-          type: DESKIT_PUBLISH_EVENT,
-          document: doc,
-          floorId: ctx?.floorId,
-          officeId: ctx?.officeId,
-        },
-        '*',
-      );
+    const notify = (target: Window | null) => {
+      if (!target || target === window) return;
+      try {
+        if (target.closed) return;
+      } catch {
+        /* ignore */
+      }
+      try {
+        target.postMessage(
+          {
+            type: DESKIT_PUBLISH_EVENT,
+            document: doc,
+            floorId: ctx?.floorId,
+            officeId: ctx?.officeId,
+          },
+          '*',
+        );
+      } catch {
+        /* ignore */
+      }
+    };
+    notify(window.parent);
+    try {
+      notify(window.opener);
+    } catch {
+      /* ignore */
     }
 
     return { ok: true, message: 'Published to DeskIt' };

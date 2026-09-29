@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Small square stairs -->
+  <rect x="6" y="10" width="52" height="44" rx="2" fill="#CBD5E1" stroke="#475569" stroke-width="1.5"/>
+  <line x1="6" y1="24" x2="58" y2="24" stroke="#64748B" stroke-width="1.2"/>
+  <line x1="6" y1="38" x2="58" y2="38" stroke="#64748B" stroke-width="1.2"/>
+  <path d="M32 46 L32 18 M25 27 L32 18 L39 27" fill="none" stroke="#334155" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

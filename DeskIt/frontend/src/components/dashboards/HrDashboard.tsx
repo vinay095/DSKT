@@ -473,7 +473,7 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
             compactChrome
             hideFooterLegend
             showMapLabels={false}
-            className="flex-1 min-h-[min(50vh,480px)] max-h-[min(62vh,640px)] h-[min(55vh,560px)]"
+            className="flex-1 min-h-0 max-h-[min(62vh,640px)] h-[min(55vh,560px)]"
             {...publishedMapSelectionProps}
           />
           <PropertiesPanel
@@ -541,7 +541,7 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
             compactChrome
             hideFooterLegend
             showMapLabels={false}
-            className="flex-1 min-h-[min(55vh,520px)] h-[min(68vh,700px)]"
+            className="flex-1 min-h-0 h-[min(68vh,700px)]"
             {...publishedMapSelectionProps}
           />
           <PropertiesPanel

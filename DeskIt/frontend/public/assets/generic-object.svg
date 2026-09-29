@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Generic structure / utility block -->
+  <rect x="8" y="8" width="48" height="48" rx="4" fill="#94A3B8" stroke="#475569" stroke-width="1.6"/>
+  <rect x="14" y="14" width="36" height="8" rx="1.5" fill="#E2E8F0" opacity="0.55"/>
+  <line x1="14" y1="32" x2="50" y2="32" stroke="#64748B" stroke-width="1.2" opacity="0.45" stroke-dasharray="3 2"/>
+  <rect x="14" y="40" width="16" height="10" rx="1.5" fill="#64748B" opacity="0.35"/>
+  <rect x="34" y="40" width="16" height="10" rx="1.5" fill="#64748B" opacity="0.35"/>
+</svg>

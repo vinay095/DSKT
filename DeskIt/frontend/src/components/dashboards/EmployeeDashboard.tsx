@@ -169,7 +169,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({
               searchQuery={searchQuery}
               compactChrome
               showMapLabels={false}
-              className="flex-1 min-h-[min(50vh,480px)] h-[min(55vh,560px)]"
+              className="flex-1 min-h-0 h-[min(55vh,560px)]"
             />
             <PropertiesPanel
               selectedDesk={inspectedDesk}

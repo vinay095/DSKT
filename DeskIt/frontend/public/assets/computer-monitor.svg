@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Top-down freestanding monitor: bezel + lit screen + neck + base -->
+  <rect x="8" y="10" width="48" height="30" rx="2.5" fill="#1E293B" stroke="#0F172A" stroke-width="1.5"/>
+  <rect x="12" y="14" width="40" height="22" rx="1.2" fill="#0F172A"/>
+  <rect x="14" y="16" width="14" height="4" rx="0.8" fill="#38BDF8" opacity="0.35"/>
+  <rect x="28" y="40" width="8" height="8" fill="#334155"/>
+  <rect x="18" y="48" width="28" height="6" rx="2" fill="#E7E5E4" stroke="#57534E" stroke-width="1.2"/>
+</svg>

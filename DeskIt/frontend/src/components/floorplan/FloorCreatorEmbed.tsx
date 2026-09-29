@@ -32,12 +32,24 @@ function resolveDocForFloor(floorId?: string): FloorDocumentV2 | null {
   return loadDraftFloorDocument(floorId) || loadPublishedFloorDocument(floorId);
 }
 
+function withFloorQuery(baseUrl: string, floorId?: string, officeId?: string): string {
+  try {
+    const url = new URL(baseUrl, window.location.origin);
+    if (floorId) url.searchParams.set('floorId', floorId);
+    if (officeId) url.searchParams.set('officeId', officeId);
+    return url.toString();
+  } catch {
+    return baseUrl;
+  }
+}
+
 /**
  * Embeds the Creator floor planner (creator/grid-ui on :5174) inside DeskIt Admin.
  * Never uses a same-origin relative URL — that recursively loads DeskIt itself.
  *
  * Cross-origin bridge: Creator cannot read DeskIt localStorage, so on ready / request
- * we postMessage the FloorDocument scoped to floorId into the iframe.
+ * we postMessage the FloorDocument scoped to floorId into the iframe (and into
+ * Open planner / Full window popups via window.opener).
  */
 export const FloorCreatorEmbed: React.FC<FloorCreatorEmbedProps> = ({
   className,
@@ -58,47 +70,80 @@ export const FloorCreatorEmbed: React.FC<FloorCreatorEmbedProps> = ({
   const [creatorReady, setCreatorReady] = useState(false);
   const readyTimerRef = useRef<number | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  /** Popups opened via Open planner / Full window — need postMessage (no shared localStorage). */
+  const popupRef = useRef<Window | null>(null);
 
-  const openInNewTab = (url = creatorUrl) => {
-    window.open(url, '_blank', 'noopener,noreferrer');
-  };
+  const pushDocumentToWindow = useCallback(
+    (win: Window | null | undefined) => {
+      if (!win || win.closed) return;
+      const document = resolveDocForFloor(floorId);
+      win.postMessage(
+        {
+          type: DESKIT_LOAD_DOCUMENT_EVENT,
+          floorId,
+          officeId,
+          document,
+        },
+        '*',
+      );
+    },
+    [floorId, officeId],
+  );
 
   const pushDocumentToCreator = useCallback(() => {
-    const win = iframeRef.current?.contentWindow;
-    if (!win) return;
-    const document = resolveDocForFloor(floorId);
-    win.postMessage(
-      {
-        type: DESKIT_LOAD_DOCUMENT_EVENT,
-        floorId,
-        officeId,
-        document,
-      },
-      '*',
-    );
-  }, [floorId, officeId]);
+    pushDocumentToWindow(iframeRef.current?.contentWindow);
+  }, [pushDocumentToWindow]);
+
+  /**
+   * Open Creator in a new tab and keep a handle so we can push the FloorDocument
+   * when Creator announces ready / requests the doc.
+   * Do not use noopener — Creator relies on window.opener for the same bridge.
+   */
+  const openInNewTab = (url = creatorUrl) => {
+    const popup = window.open(url, '_blank');
+    if (popup) {
+      popupRef.current = popup;
+    }
+  };
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       const data = event.data;
       if (!data || typeof data !== 'object') return;
 
+      const sourceWin =
+        event.source && typeof (event.source as Window).postMessage === 'function'
+          ? (event.source as Window)
+          : null;
+      const fromIframe = Boolean(
+        sourceWin && iframeRef.current?.contentWindow && sourceWin === iframeRef.current.contentWindow,
+      );
+      const fromPopup = Boolean(sourceWin && popupRef.current && sourceWin === popupRef.current);
+
       if (data.type === DESKIT_CREATOR_READY_EVENT) {
-        setCreatorReady(true);
-        setIsLoading(false);
-        setHasError(false);
-        setErrorHint(null);
-        if (readyTimerRef.current) {
-          window.clearTimeout(readyTimerRef.current);
-          readyTimerRef.current = null;
+        if (fromIframe) {
+          setCreatorReady(true);
+          setIsLoading(false);
+          setHasError(false);
+          setErrorHint(null);
+          if (readyTimerRef.current) {
+            window.clearTimeout(readyTimerRef.current);
+            readyTimerRef.current = null;
+          }
         }
-        // Push per-floor doc once Creator announces ready (cross-origin store)
-        pushDocumentToCreator();
+        if (fromIframe || fromPopup) {
+          pushDocumentToWindow(sourceWin);
+        }
         return;
       }
 
       if (data.type === DESKIT_REQUEST_DOCUMENT_EVENT) {
-        pushDocumentToCreator();
+        if (fromIframe || fromPopup) {
+          pushDocumentToWindow(sourceWin);
+        } else if (sourceWin) {
+          // Creator opened with floorId may request before we stored popupRef; still answer.
+          pushDocumentToWindow(sourceWin);
+        }
         return;
       }
 
@@ -135,7 +180,7 @@ export const FloorCreatorEmbed: React.FC<FloorCreatorEmbedProps> = ({
       window.removeEventListener('message', handleMessage);
       window.removeEventListener('storage', handleStorage);
     };
-  }, [onPublished, pushDocumentToCreator, floorId]);
+  }, [onPublished, pushDocumentToWindow, floorId]);
 
   useEffect(() => {
     if (sameOriginTrap || hasError) return;
@@ -156,6 +201,11 @@ export const FloorCreatorEmbed: React.FC<FloorCreatorEmbedProps> = ({
 
     const onReady = (event: MessageEvent) => {
       if (event.data?.type !== DESKIT_CREATOR_READY_EVENT) return;
+      const sourceWin = event.source as Window | null;
+      const fromIframe = Boolean(
+        sourceWin && iframeRef.current?.contentWindow && sourceWin === iframeRef.current.contentWindow,
+      );
+      if (!fromIframe) return;
       settled = true;
       setCreatorReady(true);
       setIsLoading(false);
@@ -273,7 +323,9 @@ npm run dev
               </button>
               <button
                 type="button"
-                onClick={() => openInNewTab(LOCAL_CREATOR_URL)}
+                onClick={() =>
+                  openInNewTab(withFloorQuery(LOCAL_CREATOR_URL, floorId, officeId))
+                }
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-brandBlue-600 hover:bg-brandBlue-700 dark:bg-brandPurple-600 dark:hover:bg-brandPurple-700 text-white transition"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
@@ -281,7 +333,9 @@ npm run dev
               </button>
               <button
                 type="button"
-                onClick={() => openInNewTab(HOSTED_FLOOR_CREATOR_URL)}
+                onClick={() =>
+                  openInNewTab(withFloorQuery(HOSTED_FLOOR_CREATOR_URL, floorId, officeId))
+                }
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold border border-light-border dark:border-dark-border"
               >
                 Hosted fallback

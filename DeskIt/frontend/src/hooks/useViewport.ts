@@ -13,11 +13,16 @@ import { DEFAULT_FLOOR_CONFIG, getFloorWorldDimensions } from '../geometry/grid'
 
 interface UseViewportOptions {
   initialViewport?: Viewport;
+  /** Absolute floor (fallback before first fit). Effective min becomes fit-to-floor after fit. */
   minZoom?: number;
   maxZoom?: number;
   floorConfig?: FloorConfig;
 }
 
+/**
+ * Viewport camera for DeskIt floor maps.
+ * Min zoom matches Creator planner: cannot zoom out past fit-to-floor for the current pane size.
+ */
 export function useViewport(options: UseViewportOptions = {}) {
   const {
     initialViewport = { panX: 40, panY: 40, zoom: 1 },
@@ -36,6 +41,10 @@ export function useViewport(options: UseViewportOptions = {}) {
   } | null>(null);
   const viewportRef = useRef(viewport);
   viewportRef.current = viewport;
+  /** Creator-style min: last fit-to-floor zoom (updated by fitToFloor). */
+  const minZoomRef = useRef(minZoom);
+  const maxZoomRef = useRef(maxZoom);
+  maxZoomRef.current = maxZoom;
 
   const handleWheelZoom = useCallback(
     (e: React.WheelEvent<SVGSVGElement>, svgElement: SVGSVGElement | null) => {
@@ -50,10 +59,14 @@ export function useViewport(options: UseViewportOptions = {}) {
 
       const factor = wheelZoomFactor(e.deltaY);
       const current = viewportRef.current;
-      const targetZoom = clampZoom(current.zoom * factor, minZoom, maxZoom);
+      const targetZoom = clampZoom(
+        current.zoom * factor,
+        minZoomRef.current,
+        maxZoomRef.current,
+      );
       setViewport(calculateZoomAroundPoint(cursorScreen, current, targetZoom));
     },
-    [minZoom, maxZoom],
+    [],
   );
 
   const startPan = useCallback(
@@ -101,8 +114,9 @@ export function useViewport(options: UseViewportOptions = {}) {
       const pad = FIT_PADDING;
       const scaleX = (containerWidth - pad * 2) / worldW;
       const scaleY = (containerHeight - pad * 2) / worldH;
-      // Clamp only by shared min/max — do not hard-cap fit at 1.2
-      const fitZoom = clampZoom(Math.min(scaleX, scaleY), minZoom, maxZoom);
+      // Fit zoom is the minimum (Creator minZoomToFitFloor / PrettyFloorView fitZoom).
+      const fitZoom = clampZoom(Math.min(scaleX, scaleY), 0.01, maxZoomRef.current);
+      minZoomRef.current = fitZoom;
 
       setViewport({
         panX: Math.round((containerWidth - worldW * fitZoom) / 2),
@@ -110,7 +124,7 @@ export function useViewport(options: UseViewportOptions = {}) {
         zoom: Number(fitZoom.toFixed(3)),
       });
     },
-    [floorConfig, minZoom, maxZoom],
+    [floorConfig],
   );
 
   const resetView = useCallback(() => {
@@ -118,15 +132,16 @@ export function useViewport(options: UseViewportOptions = {}) {
   }, [initialViewport]);
 
   /** Zoom in/out around a screen-space anchor (defaults to container center). */
-  const zoomAt = useCallback(
-    (factor: number, anchor: ScreenPoint) => {
-      setViewport((prev) => {
-        const targetZoom = clampZoom(prev.zoom * factor, minZoom, maxZoom);
-        return calculateZoomAroundPoint(anchor, prev, targetZoom);
-      });
-    },
-    [minZoom, maxZoom],
-  );
+  const zoomAt = useCallback((factor: number, anchor: ScreenPoint) => {
+    setViewport((prev) => {
+      const targetZoom = clampZoom(
+        prev.zoom * factor,
+        minZoomRef.current,
+        maxZoomRef.current,
+      );
+      return calculateZoomAroundPoint(anchor, prev, targetZoom);
+    });
+  }, []);
 
   const zoomIn = useCallback(
     (centerX: number, centerY: number) => {

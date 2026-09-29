@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Kitchen sink top-down -->
+  <rect x="4" y="10" width="56" height="44" rx="4" fill="#D6D3D1" stroke="#A8A29E" stroke-width="1.5"/>
+  <rect x="10" y="16" width="28" height="32" rx="3" fill="#E7E5E4" stroke="#78716C" stroke-width="1.2"/>
+  <rect x="42" y="16" width="12" height="32" rx="2" fill="#E7E5E4" stroke="#78716C" stroke-width="1"/>
+  <circle cx="24" cy="28" r="3" fill="#57534E" opacity="0.4"/>
+  <rect x="44" y="20" width="8" height="3" rx="0.5" fill="#A8A29E" opacity="0.5"/>
+  <rect x="44" y="26" width="8" height="3" rx="0.5" fill="#A8A29E" opacity="0.5"/>
+  <rect x="44" y="32" width="8" height="3" rx="0.5" fill="#A8A29E" opacity="0.5"/>
+</svg>

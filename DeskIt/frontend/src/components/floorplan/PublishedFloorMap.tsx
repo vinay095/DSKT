@@ -8,10 +8,9 @@ import {
   stylizeCatalogSvgMarkup,
   type ElementRenderState,
 } from '../../lib/categoryStyles';
-import { getFloorCreatorUrl, LOCAL_CREATOR_URL } from '../../lib/floorCreator';
 import { cn } from '../../lib/cn';
 import { Grid3x3, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
-import { clampZoom, wheelZoomFactor, ZOOM_BUTTON_FACTOR, ZOOM_MIN, ZOOM_MAX, FIT_PADDING } from '../../geometry/zoom';
+import { clampZoom, wheelZoomFactor, ZOOM_BUTTON_FACTOR, ZOOM_MAX, FIT_PADDING } from '../../geometry/zoom';
 import {
   adaptiveLabelFontSize,
   maxLabelChars,
@@ -62,10 +61,15 @@ export interface MapElementSelection {
   heightCells: number;
 }
 
-function creatorAssetUrl(svgFile?: string): string | null {
+/**
+ * Catalog SVGs ship with DeskIt at /public/assets (mirrored from Creator).
+ * Same-origin load avoids cross-origin fetch failures that forced procedural shapes.
+ */
+function catalogAssetUrl(svgFile?: string): string | null {
   if (!svgFile) return null;
-  const base = (getFloorCreatorUrl() || LOCAL_CREATOR_URL).replace(/\/$/, '');
-  return `${base}/assets/${svgFile}`;
+  const name = svgFile.replace(/^\/+/, '').replace(/^assets\//, '');
+  if (!name) return null;
+  return `/assets/${name}`;
 }
 
 async function styledHref(
@@ -85,7 +89,7 @@ async function styledHref(
     } else if (svgFile.trim().startsWith('<svg') || svgFile.trim().startsWith('<?xml')) {
       raw = svgFile;
     } else {
-      const url = creatorAssetUrl(svgFile);
+      const url = catalogAssetUrl(svgFile);
       if (!url) return null;
       const res = await fetch(url);
       if (!res.ok) return null;
@@ -357,11 +361,15 @@ export const PublishedFloorMap: React.FC<PublishedFloorMapProps> = ({
         }
       : {};
 
+  const fitZoomRef = useRef(1);
+
   const fitToSize = (w: number, h: number) => {
     if (w < 10 || h < 10 || worldW <= 0 || worldH <= 0) return;
     const pad = FIT_PADDING;
+    // Same rule as Creator planner/preview: fit zoom is the minimum (cannot zoom out past floor).
     const raw = Math.min((w - pad * 2) / worldW, (h - pad * 2) / worldH);
-    const zoom = clampZoom(raw, ZOOM_MIN, ZOOM_MAX);
+    const zoom = clampZoom(raw, 0.01, ZOOM_MAX);
+    fitZoomRef.current = zoom;
     setCam({
       zoom,
       panX: (w - worldW * zoom) / 2,
@@ -399,10 +407,11 @@ export const PublishedFloorMap: React.FC<PublishedFloorMapProps> = ({
       const rect = el.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
+      const minZ = fitZoomRef.current;
       setCam((c) => {
         const worldX = (mx - c.panX) / c.zoom;
         const worldY = (my - c.panY) / c.zoom;
-        const zoom = clampZoom(c.zoom * factor, ZOOM_MIN, ZOOM_MAX);
+        const zoom = clampZoom(c.zoom * factor, minZ, ZOOM_MAX);
         return { zoom, panX: mx - worldX * zoom, panY: my - worldY * zoom };
       });
     };
@@ -413,10 +422,11 @@ export const PublishedFloorMap: React.FC<PublishedFloorMapProps> = ({
   const zoomAtCenter = (factor: number) => {
     const mx = size.w / 2;
     const my = size.h / 2;
+    const minZ = fitZoomRef.current;
     setCam((c) => {
       const worldX = (mx - c.panX) / c.zoom;
       const worldY = (my - c.panY) / c.zoom;
-      const zoom = clampZoom(c.zoom * factor, ZOOM_MIN, ZOOM_MAX);
+      const zoom = clampZoom(c.zoom * factor, minZ, ZOOM_MAX);
       return { zoom, panX: mx - worldX * zoom, panY: my - worldY * zoom };
     });
   };
@@ -424,7 +434,7 @@ export const PublishedFloorMap: React.FC<PublishedFloorMapProps> = ({
   return (
     <div
       className={cn(
-        'flex flex-col bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-2xl overflow-hidden shadow-sm min-h-[min(60vh,560px)] h-full',
+        'flex flex-col bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-2xl overflow-hidden shadow-sm min-h-0 h-full',
         className,
       )}
     >
@@ -490,8 +500,8 @@ export const PublishedFloorMap: React.FC<PublishedFloorMapProps> = ({
         ref={wrapRef}
         className={
           selectionMode
-            ? 'flex-1 relative overflow-hidden cursor-crosshair bg-slate-100 dark:bg-dark-bg min-h-[min(50vh,480px)]'
-            : 'flex-1 relative overflow-hidden cursor-grab active:cursor-grabbing bg-slate-100 dark:bg-dark-bg min-h-[min(50vh,480px)]'
+            ? 'flex-1 relative overflow-hidden cursor-crosshair bg-slate-100 dark:bg-dark-bg min-h-0'
+            : 'flex-1 relative overflow-hidden cursor-grab active:cursor-grabbing bg-slate-100 dark:bg-dark-bg min-h-0'
         }
         onMouseDown={(e) => {
           if (e.button !== 0) return;

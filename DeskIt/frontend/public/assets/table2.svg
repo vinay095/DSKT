@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Conference racetrack table -->
+  <rect x="4" y="18" width="56" height="28" rx="14" fill="#57534E" stroke="#292524" stroke-width="1.6"/>
+  <rect x="10" y="23" width="44" height="18" rx="9" fill="#78716C" opacity="0.45"/>
+  <ellipse cx="32" cy="32" rx="8" ry="5" fill="none" stroke="#292524" stroke-width="0.9" opacity="0.3"/>
+  <circle cx="10" cy="12" r="2" fill="#44403C" opacity="0.4"/>
+  <circle cx="22" cy="10" r="2" fill="#44403C" opacity="0.4"/>
+  <circle cx="32" cy="9" r="2" fill="#44403C" opacity="0.4"/>
+  <circle cx="42" cy="10" r="2" fill="#44403C" opacity="0.4"/>
+  <circle cx="54" cy="12" r="2" fill="#44403C" opacity="0.4"/>
+  <circle cx="10" cy="52" r="2" fill="#44403C" opacity="0.4"/>
+  <circle cx="22" cy="54" r="2" fill="#44403C" opacity="0.4"/>
+  <circle cx="32" cy="55" r="2" fill="#44403C" opacity="0.4"/>
+  <circle cx="42" cy="54" r="2" fill="#44403C" opacity="0.4"/>
+  <circle cx="54" cy="52" r="2" fill="#44403C" opacity="0.4"/>
+</svg>

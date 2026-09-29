@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Lounge chair top-down -->
+  <ellipse cx="32" cy="58" rx="22" ry="3.5" fill="#1F3334" opacity="0.12"/>
+  <ellipse cx="32" cy="36" rx="22" ry="18" fill="#3D5A5B" stroke="#1F3334" stroke-width="1.5"/>
+  <path d="M14 30 Q32 8 50 30 L42 36 Q32 18 22 36 Z" fill="#2A4142" stroke="#1F3334" stroke-width="1"/>
+  <ellipse cx="12" cy="38" rx="5" ry="10" fill="#2A4142"/>
+  <ellipse cx="52" cy="38" rx="5" ry="10" fill="#2A4142"/>
+  <ellipse cx="32" cy="40" rx="10" ry="7" fill="#FFFFFF" opacity="0.08"/>
+</svg>

@@ -60,7 +60,6 @@ export const FloorPlanViewer: React.FC<FloorPlanViewerProps> = ({
     endPan,
     handleWheelZoom,
     fitToFloor,
-    resetView,
     zoomIn,
     zoomOut,
   } = useViewport({
@@ -124,7 +123,7 @@ export const FloorPlanViewer: React.FC<FloorPlanViewerProps> = ({
     <div className="flex flex-col lg:flex-row gap-4 h-full">
       <div
         ref={containerRef}
-        className="flex-1 bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-2xl flex flex-col overflow-hidden shadow-sm min-h-[min(60vh,560px)] h-full"
+        className="flex-1 bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-2xl flex flex-col overflow-hidden shadow-sm min-h-0 h-full"
       >
         {/* Toolbar */}
         <div className="p-3 bg-slate-50 dark:bg-dark-sidebar border-b border-light-border dark:border-dark-border flex flex-col gap-2.5 z-10">
@@ -239,7 +238,12 @@ export const FloorPlanViewer: React.FC<FloorPlanViewerProps> = ({
                 >
                   <Maximize2 className="w-3.5 h-3.5" />
                 </button>
-                <button type="button" onClick={resetView} className="p-1 hover:bg-slate-100 dark:hover:bg-dark-sidebar rounded text-light-text dark:text-dark-text" title="Reset View">
+                <button
+                  type="button"
+                  onClick={fitSvgPane}
+                  className="p-1 hover:bg-slate-100 dark:hover:bg-dark-sidebar rounded text-light-text dark:text-dark-text"
+                  title="Reset View"
+                >
                   <RotateCcw className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -292,7 +296,7 @@ export const FloorPlanViewer: React.FC<FloorPlanViewerProps> = ({
         {/* SVG viewport — measure this pane for fit, not the outer card */}
         <div
           ref={svgPaneRef}
-          className="flex-1 relative overflow-hidden cursor-grab active:cursor-grabbing min-h-[min(60vh,560px)]"
+          className="flex-1 relative overflow-hidden cursor-grab active:cursor-grabbing min-h-0"
         >
           <svg
             ref={svgRef}
