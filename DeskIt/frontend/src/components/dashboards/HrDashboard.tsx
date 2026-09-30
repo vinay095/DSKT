@@ -36,11 +36,13 @@ import { PageHeader } from '../common/PageHeader';
 import { PeopleTeams } from '../people/PeopleTeams';
 import { TeamAreaAssignBar } from '../floorplan/TeamAreaAssignBar';
 import { getTeamByName } from '../../data/teams';
-import { applyTeamToDesk } from '../../lib/teamAssignment';
-import { deskFromEntity, isAssignable } from '../../lib/publishedFloor';
+import { applyTeamToDesk, assignTeamAndSeatEmployees } from '../../lib/teamAssignment';
+import { deskFromEntity, hasRenderableFloorDocument, isAssignable } from '../../lib/publishedFloor';
 import type { GoToFloorMapArgs } from '../people/EmployeeDrawer';
 import type { FloorOption } from '../../types/office';
 import type { DbEmployee } from '../../types/database';
+import { MOCK_999_EMPLOYEES } from '../../data/employeesData';
+import { EmptyFloorMap } from '../floorplan/EmptyFloorMap';
 
 interface HrDashboardProps {
   floorPlan: FloorPlan;
@@ -255,19 +257,43 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
     }
     const targets = resolveDesksByIds(areaSelectedIds);
     if (!targets.length) {
-      setAreaAssignMsg('No seats found for the current selection.');
+      setAreaAssignMsg('No seats found for the current selection. Select desks/workstations.');
       window.setTimeout(() => setAreaAssignMsg(null), 2500);
       return;
     }
-    const updated = targets.map((d) => applyTeamToDesk(d, team));
-    persistDesks(updated);
-    const label = clear ? 'Cleared team on' : `Assigned ${team!.name} to`;
-    setAreaAssignMsg(`${label} ${updated.length} seat${updated.length === 1 ? '' : 's'}.`);
-    window.setTimeout(() => setAreaAssignMsg(null), 3000);
+
+    if (clear) {
+      const updated = targets.map((d) => applyTeamToDesk(d, null));
+      persistDesks(updated);
+      setAreaAssignMsg(`Cleared team on ${updated.length} seat${updated.length === 1 ? '' : 's'}.`);
+    } else {
+      const { desks: updated, seatedCount } = assignTeamAndSeatEmployees(
+        targets,
+        team!,
+        MOCK_999_EMPLOYEES,
+        floorPlan.desks,
+      );
+      persistDesks(updated);
+      const teamLabel = team!.name;
+      setAreaAssignMsg(
+        seatedCount > 0
+          ? `Assigned ${teamLabel} to ${updated.length} seat${updated.length === 1 ? '' : 's'} and seated ${seatedCount} team member${seatedCount === 1 ? '' : 's'}.`
+          : `Assigned ${teamLabel} to ${updated.length} seat${updated.length === 1 ? '' : 's'}. (No free team members left to seat.)`,
+      );
+    }
+
+    // Leave selection mode so HR isn't stuck on "Selecting…"
+    setAreaSelectMode(false);
+    setAreaSelectedIds([]);
+    window.setTimeout(() => setAreaAssignMsg(null), 4500);
   };
 
+  const usablePublishedDoc = hasRenderableFloorDocument(publishedDocument)
+    ? publishedDocument
+    : null;
+
   const areaAssignBar =
-    canAllocateSeat && publishedDocument ? (
+    canAllocateSeat && usablePublishedDoc ? (
       <div className="space-y-1.5">
         <TeamAreaAssignBar
           selectionMode={areaSelectMode}
@@ -456,10 +482,10 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
       </div>
       {areaAssignBar}
 
-      {publishedDocument ? (
+      {usablePublishedDoc ? (
         <div className="flex flex-col lg:flex-row gap-4">
           <PublishedFloorMap
-            document={publishedDocument}
+            document={usablePublishedDoc}
             desks={floorPlan.desks}
             showGrid={showGrid}
             onToggleGrid={() => setShowGrid((v) => !v)}
@@ -500,8 +526,8 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
             }}
           />
         </div>
-      ) : (
-        <div className="min-h-[min(50vh,480px)]">
+      ) : floorPlan.desks.length > 0 ? (
+        <div className="min-h-[min(50vh,480px)] h-[min(55vh,560px)]">
           <FloorPlanViewer
             floorPlan={floorPlan}
             searchQuery={searchQuery}
@@ -511,6 +537,8 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
             hrMode={canAllocateSeat}
           />
         </div>
+      ) : (
+        <EmptyFloorMap />
       )}
     </div>
   );
@@ -524,10 +552,10 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
         actions={<ColorHierarchyLegend compact />}
       />
       {areaAssignBar}
-      {publishedDocument ? (
+      {usablePublishedDoc ? (
         <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-[min(65vh,600px)]">
           <PublishedFloorMap
-            document={publishedDocument}
+            document={usablePublishedDoc}
             desks={floorPlan.desks}
             showGrid={showGrid}
             onToggleGrid={() => setShowGrid((v) => !v)}
@@ -568,8 +596,8 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
             }}
           />
         </div>
-      ) : (
-        <div className="flex-1 min-h-[min(60vh,560px)]">
+      ) : floorPlan.desks.length > 0 ? (
+        <div className="flex-1 min-h-0 h-[min(60vh,560px)]">
           <FloorPlanViewer
             floorPlan={floorPlan}
             searchQuery={searchQuery}
@@ -579,6 +607,8 @@ export const HrDashboard: React.FC<HrDashboardProps> = ({
             hrMode={canAllocateSeat}
           />
         </div>
+      ) : (
+        <EmptyFloorMap />
       )}
     </div>
   );

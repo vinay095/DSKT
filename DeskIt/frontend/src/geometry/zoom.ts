@@ -7,11 +7,16 @@ export const ZOOM_BUTTON_FACTOR = 1.1;
 
 /**
  * Absolute fallback before first fit.
- * Runtime min for floor maps matches Creator: fit-to-floor for the current pane
+ * Runtime min for floor maps matches Creator: fit-to-content / fit-to-floor
  * (see PublishedFloorMap fitZoomRef / useViewport minZoomRef).
  */
 export const ZOOM_MIN = 0.15;
-export const ZOOM_MAX = 8;
+
+/**
+ * No practical max — only minimum (fit) is enforced.
+ * Kept as a finite ceiling only to avoid Infinity math edge cases.
+ */
+export const ZOOM_MAX = 10_000;
 
 /** Padding (px) used when fitting the floor into a viewport. */
 export const FIT_PADDING = 40;

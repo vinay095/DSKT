@@ -16,11 +16,13 @@ import { getAllFloors } from '../../data/floors';
 import { FloorDocumentV2 } from '../../types/floorDocument';
 import {
   floorDocumentToFloorPlan,
+  hasRenderableFloorDocument,
   loadPublishedFloorDocument,
   savePublishedFloorDocument,
 } from '../../lib/publishedFloor';
 import { PublishedFloorMap, type MapElementSelection } from '../floorplan/PublishedFloorMap';
 import { PropertiesPanel } from '../floorplan/PropertiesPanel';
+import { EmptyFloorMap } from '../floorplan/EmptyFloorMap';
 import { PageHeader } from '../common/PageHeader';
 import { AdminFloorWorkflow } from '../admin/AdminFloorWorkflow';
 import { FloorPlanRegistry } from '../admin/FloorPlanRegistry';
@@ -294,10 +296,11 @@ export const Layout: React.FC = () => {
         );
       }
 
-      const mapPane = publishedDoc ? (
+      const mapDoc = hasRenderableFloorDocument(publishedDoc) ? publishedDoc : null;
+      const mapPane = mapDoc ? (
         <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-[min(65vh,600px)]">
           <PublishedFloorMap
-            document={publishedDoc}
+            document={mapDoc}
             desks={currentFloorPlan.desks}
             showGrid={publishedShowGrid}
             onToggleGrid={() => setPublishedShowGrid((v) => !v)}
@@ -335,7 +338,7 @@ export const Layout: React.FC = () => {
             }}
           />
         </div>
-      ) : (
+      ) : currentFloorPlan.desks.length > 0 ? (
         <div className="flex-1 min-h-0 flex flex-col gap-3">
           <p className="text-xs text-content-secondary shrink-0">
             No published SVG map yet for this floor — showing desk layout. Publish from Creator
@@ -345,6 +348,8 @@ export const Layout: React.FC = () => {
             <FloorPlanViewer floorPlan={currentFloorPlan} searchQuery={searchQuery} />
           </div>
         </div>
+      ) : (
+        <EmptyFloorMap />
       );
 
       if (canAccessAdminTools) {

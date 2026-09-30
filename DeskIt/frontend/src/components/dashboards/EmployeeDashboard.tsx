@@ -5,6 +5,8 @@ import { FloorDocumentV2 } from '../../types/floorDocument';
 import { FloorPlanViewer } from '../floorplan/FloorPlanViewer';
 import { PublishedFloorMap, MapElementSelection } from '../floorplan/PublishedFloorMap';
 import { PropertiesPanel } from '../floorplan/PropertiesPanel';
+import { EmptyFloorMap } from '../floorplan/EmptyFloorMap';
+import { hasRenderableFloorDocument } from '../../lib/publishedFloor';
 import { MOCK_999_EMPLOYEES } from '../../data/employeesData';
 import { EMPLOYEE_STATUS_CONFIG } from '../../types/database';
 import { useAuth } from '../../context/AuthContext';
@@ -145,7 +147,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({
           </p>
         </div>
 
-        {publishedDocument ? (
+        {hasRenderableFloorDocument(publishedDocument) && publishedDocument ? (
           <div className="flex flex-col lg:flex-row gap-4 min-h-[min(55vh,520px)]">
             <PublishedFloorMap
               document={publishedDocument}
@@ -187,10 +189,12 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({
               }}
             />
           </div>
-        ) : (
-          <div className="min-h-[min(60vh,560px)]">
+        ) : floorPlan.desks.length > 0 ? (
+          <div className="min-h-0 h-[min(55vh,560px)]">
             <FloorPlanViewer floorPlan={floorPlan} searchQuery={searchQuery} />
           </div>
+        ) : (
+          <EmptyFloorMap />
         )}
       </div>
     </div>

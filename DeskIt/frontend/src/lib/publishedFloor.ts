@@ -235,6 +235,56 @@ export function loadPublishedFloorDocument(floorId?: string): FloorDocumentV2 | 
   }
 }
 
+/**
+ * True when a published Creator doc has real layout content worth showing.
+ * Empty / placeholder docs should not replace the seat map with a blank canvas.
+ */
+export function hasRenderableFloorDocument(
+  doc: FloorDocumentV2 | null | undefined,
+): boolean {
+  if (!doc || doc.version !== 2) return false;
+  const entities = doc.entities || [];
+  if (entities.length === 0) return false;
+  // At least one non-text entity (furniture / structure / zone polygon)
+  return entities.some((e) => (e.category || '').toLowerCase() !== 'text');
+}
+
+/** World-space axis-aligned bounds of entities (fallback: full floor). */
+export function floorDocumentContentBounds(
+  doc: FloorDocumentV2,
+): { x: number; y: number; w: number; h: number } {
+  const a = doc.a || doc.floor.a || DEFAULT_FLOOR_CONFIG.a;
+  const f = a / FINEST_PER_A;
+  const floorW = doc.floor.cols * a;
+  const floorH = doc.floor.rows * a;
+  const entities = (doc.entities || []).filter(
+    (e) => (e.category || '').toLowerCase() !== 'text',
+  );
+  if (!entities.length) {
+    return { x: 0, y: 0, w: floorW, h: floorH };
+  }
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const e of entities) {
+    const x = e.origin.col * f;
+    const y = e.origin.row * f;
+    const w = Math.max(e.widthCells * f, f);
+    const h = Math.max(e.heightCells * f, f);
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x + w);
+    maxY = Math.max(maxY, y + h);
+  }
+  const pad = a * 0.5;
+  const x = Math.max(0, minX - pad);
+  const y = Math.max(0, minY - pad);
+  const w = Math.min(floorW - x, maxX - minX + pad * 2);
+  const h = Math.min(floorH - y, maxY - minY + pad * 2);
+  return { x, y, w: Math.max(w, a), h: Math.max(h, a) };
+}
+
 /** Persist Creator document for a floor (and mirror to global latest key for Creator). */
 export function savePublishedFloorDocument(doc: FloorDocumentV2, floorId: string): void {
   const payload = JSON.stringify(doc);

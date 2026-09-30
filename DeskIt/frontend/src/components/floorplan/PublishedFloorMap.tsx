@@ -364,9 +364,11 @@ export const PublishedFloorMap: React.FC<PublishedFloorMapProps> = ({
   const fitZoomRef = useRef(1);
 
   const fitToSize = (w: number, h: number) => {
-    if (w < 10 || h < 10 || worldW <= 0 || worldH <= 0) return;
+    // Ignore undersized first paints so we don't lock a bad min zoom.
+    if (w < 80 || h < 80 || worldW <= 0 || worldH <= 0) return;
     const pad = FIT_PADDING;
-    // Same rule as Creator planner/preview: fit zoom is the minimum (cannot zoom out past floor).
+    // Same as Creator planner: fit the full floor to the pane = "normal page" / min zoom.
+    // Zoom-in is uncapped (ZOOM_MAX); zoom-out cannot go below this fit zoom.
     const raw = Math.min((w - pad * 2) / worldW, (h - pad * 2) / worldH);
     const zoom = clampZoom(raw, 0.01, ZOOM_MAX);
     fitZoomRef.current = zoom;

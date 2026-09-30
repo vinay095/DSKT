@@ -109,12 +109,13 @@ export function useViewport(options: UseViewportOptions = {}) {
 
   const fitToFloor = useCallback(
     (containerWidth: number, containerHeight: number) => {
-      if (containerWidth < 10 || containerHeight < 10) return;
+      // Ignore undersized first paints so we don't lock a tiny min zoom.
+      if (containerWidth < 80 || containerHeight < 80) return;
       const { width: worldW, height: worldH } = getFloorWorldDimensions(floorConfig);
       const pad = FIT_PADDING;
       const scaleX = (containerWidth - pad * 2) / worldW;
       const scaleY = (containerHeight - pad * 2) / worldH;
-      // Fit zoom is the minimum (Creator minZoomToFitFloor / PrettyFloorView fitZoom).
+      // Fit zoom is the minimum — max zoom is effectively uncapped (ZOOM_MAX).
       const fitZoom = clampZoom(Math.min(scaleX, scaleY), 0.01, maxZoomRef.current);
       minZoomRef.current = fitZoom;
 
