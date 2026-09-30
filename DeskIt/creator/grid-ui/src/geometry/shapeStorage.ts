@@ -16,6 +16,7 @@ import {
   floorFinestCols,
   floorFinestRows,
 } from './grid';
+import { isCatalogAssetSvg } from '../lib/catalog';
 
 export type CompactRegion = {
   origin: GridCell;
@@ -564,8 +565,8 @@ export function hydratePolygonEntity(entity: Entity): Entity {
 }
 
 /**
- * Drop cells/svgPath/svg; always strip outline when library is canonical
- * so library-backed instances share a fixed JSON column set.
+ * Drop cells/svgPath; strip bulky data-URL svg for library polygons.
+ * Keep catalog asset filenames so reload/preview can render SVGs.
  */
 export function compactEntityForSave(
   entity: Entity,
@@ -583,6 +584,9 @@ export function compactEntityForSave(
   }
 
   if (!entity.cells?.length && !entity.outline?.length) {
+    if (isCatalogAssetSvg(entity.svg)) {
+      return { ...base, svg: entity.svg };
+    }
     return base;
   }
   const outline = simplifyCollinear(

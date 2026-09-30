@@ -90,7 +90,7 @@ import {
   type FloorDocument,
 } from '../lib/drafts';
 import { exportPdf, exportPng, exportSvg } from '../lib/export';
-import { loadCatalog } from '../lib/catalog';
+import { getCachedCatalog, loadCatalog, rehydrateCatalogSvgs } from '../lib/catalog';
 import {
   deleteCustomLibraryEntry,
 } from '../lib/library';
@@ -303,6 +303,16 @@ const FloorEditor: React.FC<FloorEditorProps> = ({
   useEffect(() => {
     void loadCatalog().then((cat) => setCategories(cat.categories));
   }, []);
+
+  // Rehydrate catalog SVGs once the catalog arrives (covers load-before-catalog race).
+  useEffect(() => {
+    if (!categories.length) return;
+    setEntities((prev) => {
+      const next = rehydrateCatalogSvgs(prev, categories);
+      if (next === prev || next.every((e, i) => e === prev[i])) return prev;
+      return next;
+    });
+  }, [categories, setEntities]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -1475,9 +1485,13 @@ const FloorEditor: React.FC<FloorEditorProps> = ({
 
   const applyDocument = (doc: FloorDocument) => {
     const normalized = normalizeDocument(doc);
+    const cats = categories.length
+      ? categories
+      : (getCachedCatalog()?.categories ?? []);
+    const entities = rehydrateCatalogSvgs(normalized.entities, cats);
     setFloor(normalized.floor);
     if (normalized.viewport) setClampedViewport(normalized.viewport);
-    resetEntities(normalized.entities);
+    resetEntities(entities);
     setZones(normalized.zones ?? []);
     setCustomLibrary(normalized.customLibrary ?? []);
     setLayoutPlaceLevel(normalized.layoutPlaceLevel ?? null);
@@ -1724,7 +1738,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({
       <div className="editor-body">
         <EntityLibrary
           categories={categories}
-          customItems={mergedCustomLibrary}
+          customItems={customLibrary}
           activeId={placeItem?.id ?? null}
           onSelect={(item) => {
             setPlaceItem(item);
@@ -1906,7 +1920,7 @@ const FloorEditor: React.FC<FloorEditorProps> = ({
               pos ({Math.max(0, cursorPos.col)}, {Math.max(0, cursorPos.row)})
             </span>
             <span>
-            cell {gridCellSize.toFixed(2)} | Level:{gridLevel} | placeAt: {' '}
+            cell {gridCellSize.toFixed(2)} | Level:{gridLevel} | placeAt:
               {layoutPlaceLevel
                 ? scaleLevelLabel(layoutPlaceLevel)
                 : scaleLevelLabel(currentScaleFromZoom)}
@@ -1916,8 +1930,8 @@ const FloorEditor: React.FC<FloorEditorProps> = ({
               {selectedIds.length > 0 
 			  	? `${selectedIds.length} entity(s)`
               	: selectedCells.length > 0 
-			  	? `${selectedCells.length} cell(s)`
-              	: 'Nothing selected'}
+					? `${selectedCells.length} cell(s)`
+					: 'Nothing selected'}
             </span>
           </div>
         </div>

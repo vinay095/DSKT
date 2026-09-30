@@ -1,5 +1,6 @@
 import type { FloorDocument } from './drafts';
 import { normalizeDocument } from './drafts';
+import { getCachedCatalog, rehydrateCatalogSvgs } from './catalog';
 
 /** Shared key so DeskIt frontend can read Admin-published creator maps */
 export const DESKIT_PUBLISHED_FLOOR_DOC_KEY = 'deskit_published_floor_document_v2';
@@ -45,11 +46,16 @@ export function publishFloorDocument(
   ctx?: CreatorFloorContext,
 ): PublishResult {
   try {
-    const doc = normalizeDocument({
+    const normalized = normalizeDocument({
       ...raw,
       savedAt: new Date().toISOString(),
       name: raw.name || 'Published Floor',
     });
+    const cats = getCachedCatalog()?.categories ?? [];
+    const doc = {
+      ...normalized,
+      entities: rehydrateCatalogSvgs(normalized.entities, cats),
+    };
     const payload = JSON.stringify(doc);
     localStorage.setItem(DESKIT_PUBLISHED_FLOOR_DOC_KEY, payload);
     if (ctx?.floorId) {

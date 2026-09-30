@@ -1,4 +1,4 @@
-import type { CatalogCategory, LibraryItem } from '../types/geometry';
+import type { CatalogCategory, Entity, LibraryItem } from '../types/geometry';
 
 export type LibraryCatalog = {
   categories: CatalogCategory[];
@@ -13,6 +13,10 @@ export async function loadCatalog(): Promise<LibraryCatalog> {
   const data = (await res.json()) as LibraryCatalog;
   cached = data;
   return data;
+}
+
+export function getCachedCatalog(): LibraryCatalog | null {
+  return cached;
 }
 
 export function catalogToLibraryItems(catalog: LibraryCatalog): LibraryItem[] {
@@ -33,6 +37,40 @@ export function catalogToLibraryItems(catalog: LibraryCatalog): LibraryItem[] {
     }
   }
   return items;
+}
+
+/** True when svg is a catalog asset filename (not a data URL or inline markup). */
+export function isCatalogAssetSvg(svg?: string): boolean {
+  if (!svg) return false;
+  const trimmed = svg.trimStart();
+  if (svg.startsWith('data:') || trimmed.startsWith('<svg') || trimmed.startsWith('<?xml')) {
+    return false;
+  }
+  return true;
+}
+
+export function findCatalogSvg(
+  categories: CatalogCategory[],
+  category: string,
+  elementType: string,
+): string | undefined {
+  const cat = categories.find((c) => c.category === category);
+  const type = cat?.types.find((t) => t.elementType === elementType);
+  return type?.svg;
+}
+
+/** Restore missing catalog svg filenames on entities (older drafts / downloads). */
+export function rehydrateCatalogSvgs(
+  entities: Entity[],
+  categories: CatalogCategory[],
+): Entity[] {
+  if (!categories.length) return entities;
+  return entities.map((e) => {
+    if (e.svg) return e;
+    if (e.cells?.length || (e.outline && e.outline.length >= 3)) return e;
+    const svg = findCatalogSvg(categories, e.category, e.elementType);
+    return svg ? { ...e, svg } : e;
+  });
 }
 
 export function assetUrl(svg?: string): string | undefined {

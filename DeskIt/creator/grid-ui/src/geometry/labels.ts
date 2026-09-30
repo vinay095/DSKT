@@ -11,6 +11,21 @@ export function adaptiveLabelFontSize(
   return Math.max(min, Math.min(max, Math.min(boxW, boxH) * ratio));
 }
 
+/**
+ * Default label size fits inside the entity box (width-aware).
+ * `multiplier` is the Properties "Label font size" slider (`Entity.fontSize`, default 1).
+ */
+export function entityLabelFontSize(
+  boxW: number,
+  boxH: number,
+  multiplier = 1,
+): number {
+  const fitH = boxH * 0.55;
+  const fitW = boxW * 0.28;
+  const base = Math.min(fitH, fitW, Math.min(boxW, boxH) * 0.4);
+  return Math.max(1e-6, base * Math.max(0.1, multiplier));
+}
+
 export function truncateLabel(text: string, maxChars: number): string {
   const t = text.trim();
   if (maxChars < 2 || t.length <= maxChars) return t;

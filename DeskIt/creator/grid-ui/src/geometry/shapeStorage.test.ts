@@ -224,6 +224,58 @@ describe('compact shape storage', () => {
     expect(saved.outline?.length).toBeGreaterThan(0);
     expect(saved.placeLevel).toBe('a/4');
   });
+
+  it('keeps catalog svg filenames on furniture save', () => {
+    const saved = compactEntityForSave({
+      objectId: 'd1',
+      category: 'workstation',
+      elementType: 'computer_desk',
+      origin: { col: 0, row: 0 },
+      widthCells: 8,
+      heightCells: 4,
+      svg: 'computer.svg',
+      label: 'Computer desk',
+    });
+    expect(saved.svg).toBe('computer.svg');
+    expect(saved.svgPath).toBeUndefined();
+  });
+
+  it('strips data-URL svg from library-backed polygons on save', () => {
+    const outline = [
+      { col: 0, row: 0 },
+      { col: 4, row: 0 },
+      { col: 4, row: 2 },
+      { col: 0, row: 2 },
+    ];
+    const library: CustomLibraryEntry[] = [
+      {
+        id: 'lib-1',
+        category: 'custom',
+        elementType: 'poly_box',
+        label: 'Box',
+        widthCells: 4,
+        heightCells: 2,
+        color: '#abc',
+        outline,
+        svg: 'data:image/svg+xml;charset=utf-8,x',
+      },
+    ];
+    const saved = compactEntityForSave(
+      {
+        objectId: 'e1',
+        category: 'custom',
+        elementType: 'poly_box',
+        origin: { col: 0, row: 0 },
+        widthCells: 4,
+        heightCells: 2,
+        outline,
+        svg: 'data:image/svg+xml;charset=utf-8,x',
+      },
+      library,
+    );
+    expect(saved.svg).toBeUndefined();
+    expect(saved.outline).toBeUndefined();
+  });
 });
 
 describe('polygon library dedupe', () => {

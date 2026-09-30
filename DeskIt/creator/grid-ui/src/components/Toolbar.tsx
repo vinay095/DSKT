@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { Viewport } from '../types/viewport';
 import { listDrafts } from '../lib/drafts';
+import { PromptToast } from './PromptToast';
 
 interface ToolbarProps {
   viewport: Viewport;
@@ -75,12 +76,29 @@ const Toolbar: React.FC<ToolbarProps> = ({
 }) => {
   const [draftOpen, setDraftOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
-  const [draftName, setDraftName] = useState('');
   const [draftsVersion, setDraftsVersion] = useState(0);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const draftMenuRef = useRef<HTMLDivElement>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
   const drafts = draftOpen ? listDrafts() : [];
   void draftsVersion;
   // Absolute scale (px per world unit) — avoid fake % that jumped with ÷40.
   const zoomLabel = viewport.zoom >= 10 ? `${Math.round(viewport.zoom)}×` : `${viewport.zoom.toFixed(1)}×`;
+
+  useEffect(() => {
+    if (!draftOpen && !exportOpen) return;
+    const onPointerDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (draftOpen && draftMenuRef.current && !draftMenuRef.current.contains(target)) {
+        setDraftOpen(false);
+      }
+      if (exportOpen && exportMenuRef.current && !exportMenuRef.current.contains(target)) {
+        setExportOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, [draftOpen, exportOpen]);
 
   return (
     <header className="toolbar" role="toolbar" aria-label="Floor editor controls">
@@ -191,6 +209,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
       <div className="toolbar-spacer" />
 
       <div className="toolbar-group toolbar-menus">
+        {/* Import floor image — enable later
         <button
           type="button"
           className="toolbar-btn"
@@ -199,14 +218,27 @@ const Toolbar: React.FC<ToolbarProps> = ({
         >
           Import floor image
         </button>
+        */}
         <button type="button" className="toolbar-btn" onClick={onOpenPreview}>
           Preview
         </button>
         <button type="button" className="toolbar-btn" onClick={onHowToUse}>
           How to use
         </button>
+        <button
+          type="button"
+          className="toolbar-btn"
+          onClick={() => {
+            setSaveDialogOpen(true);
+            setDraftOpen(false);
+            setExportOpen(false);
+          }}
+          title="Save floor plan to drafts"
+        >
+          Save
+        </button>
 
-        <div className="menu-wrap">
+        <div className="menu-wrap" ref={draftMenuRef}>
           <button
             type="button"
             className="toolbar-btn"
@@ -220,35 +252,6 @@ const Toolbar: React.FC<ToolbarProps> = ({
           </button>
           {draftOpen && (
             <div className="menu-dropdown draft-menu">
-              <div className="draft-save-form" onMouseDown={(e) => e.stopPropagation()}>
-                <input
-                  type="text"
-                  placeholder="Draft name"
-                  value={draftName}
-                  onChange={(e) => setDraftName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && draftName.trim()) {
-                      onSaveDraft(draftName.trim());
-                      setDraftName('');
-                      setDraftsVersion((v) => v + 1);
-                    }
-                  }}
-                />
-                <button
-                  type="button"
-                  className="toolbar-btn"
-                  disabled={!draftName.trim()}
-                  onClick={() => {
-                    if (!draftName.trim()) return;
-                    onSaveDraft(draftName.trim());
-                    setDraftName('');
-                    setDraftsVersion((v) => v + 1);
-                  }}
-                >
-                  Save draft
-                </button>
-              </div>
-              <div className="menu-divider" />
               {drafts.length === 0 && <div className="menu-empty">No saved drafts yet</div>}
               {drafts.map((d) => (
                 <button
@@ -258,6 +261,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
                   onClick={() => {
                     onLoadDraft(d.name!);
                     setDraftOpen(false);
+                    setDraftsVersion((v) => v + 1);
                   }}
                 >
                   {d.name}
@@ -268,7 +272,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
           )}
         </div>
 
-        <div className="menu-wrap">
+        <div className="menu-wrap" ref={exportMenuRef}>
           <button
             type="button"
             className="toolbar-btn"
@@ -330,6 +334,27 @@ const Toolbar: React.FC<ToolbarProps> = ({
           {theme === 'dark' ? 'Light' : 'Dark'}
         </button>
       </div>
+
+      <PromptToast
+        request={
+          saveDialogOpen
+            ? {
+                title: 'Save floor plan',
+                message: 'Enter a name for this draft.',
+                placeholder: 'e.g. Floor A — draft',
+                confirmLabel: 'Save',
+              }
+            : null
+        }
+        onSubmit={(value) => {
+          const name = value.trim();
+          setSaveDialogOpen(false);
+          if (!name) return;
+          onSaveDraft(name);
+          setDraftsVersion((v) => v + 1);
+        }}
+        onCancel={() => setSaveDialogOpen(false)}
+      />
     </header>
   );
 };

@@ -4,7 +4,7 @@ import { entityWorldRect } from '../geometry/entities';
 import { FINEST_PER_A } from '../geometry/grid';
 import { cellsToOutline, outlineToSvgPath } from '../geometry/shapeStorage';
 import {
-  adaptiveLabelFontSize,
+  entityLabelFontSize,
   maxLabelChars,
   readableLabelTransform,
   truncateLabel,
@@ -100,11 +100,7 @@ const EntitiesLayer: React.FC<EntitiesLayerProps> = ({
           );
         }
 
-        const fontSize = adaptiveLabelFontSize(w, h, {
-          ratio: 0.28,
-          min: f * 2,
-          max: a * 0.45,
-        });
+        const fontSize = entityLabelFontSize(w, h, e.fontSize ?? 1);
         const label = truncateLabel(rawLabel, maxLabelChars(w, fontSize));
         const fillOpacity = selected ? 0.35 : 0.2;
         const stroke = selected ? '#22c55e' : color;

@@ -5,15 +5,10 @@ import { floorWorldHeight, floorWorldWidth } from '../types/geometry';
 import { isPolygonEntity } from '../geometry/entities';
 import { FINEST_PER_A } from '../geometry/grid';
 import { getCategoryStyle } from '../lib/categoryStyles';
+import { loadCatalog, rehydrateCatalogSvgs } from '../lib/catalog';
 import { publishFloorDocument } from '../lib/publish';
 import StyledCatalogSvg from './StyledCatalogSvg';
 import { clampZoom, wheelZoomFactor, ZOOM_BUTTON_FACTOR } from '../geometry/zoom';
-import {
-  adaptiveLabelFontSize,
-  maxLabelChars,
-  readableLabelTransform,
-  truncateLabel,
-} from '../geometry/labels';
 
 interface PrettyFloorViewProps {
   document: FloorDocument;
@@ -32,7 +27,17 @@ const PrettyFloorView: React.FC<PrettyFloorViewProps> = ({
   onBack,
   floorContext,
 }) => {
-  const doc = useMemo(() => normalizeDocument(rawDoc), [rawDoc]);
+  const baseDoc = useMemo(() => normalizeDocument(rawDoc), [rawDoc]);
+  const [doc, setDoc] = useState(baseDoc);
+  useEffect(() => {
+    setDoc(baseDoc);
+    void loadCatalog().then((cat) => {
+      setDoc({
+        ...baseDoc,
+        entities: rehydrateCatalogSvgs(baseDoc.entities, cat.categories),
+      });
+    });
+  }, [baseDoc]);
   const a = doc.a;
   const floor = doc.floor;
   const width = floorWorldWidth(floor);
@@ -299,23 +304,7 @@ const PrettyFloorView: React.FC<PrettyFloorViewProps> = ({
                 const catStyle = getCategoryStyle(e.category, e.elementType, e.color);
 
                 if (e.category === 'text') {
-                  const fontSize = Math.max((e.fontSize ?? 0.5) * a, f * 6);
-                  const text = truncateLabel(
-                    e.label || 'Text',
-                    maxLabelChars(w, fontSize),
-                  );
-                  return (
-                    <g key={e.objectId} transform={readableLabelTransform(cx, cy, rot)}>
-                      <text
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        fontSize={fontSize}
-                        fill={e.color ?? catStyle.fill}
-                      >
-                        {text}
-                      </text>
-                    </g>
-                  );
+                  return null;
                 }
 
                 if (isPolygonEntity(e) && (e.svgPath || e.outline)) {
@@ -327,11 +316,6 @@ const PrettyFloorView: React.FC<PrettyFloorViewProps> = ({
                     pathD += ' Z';
                   }
                   if (!pathD) return null;
-                  const fontSize = adaptiveLabelFontSize(w, h, { ratio: 0.18, min: f * 4, max: a * 0.35 });
-                  const label = truncateLabel(
-                    e.label || e.elementType.replace(/_/g, ' '),
-                    maxLabelChars(w, fontSize),
-                  );
                   return (
                     <g key={e.objectId}>
                       <g transform={`translate(${x}, ${y}) scale(${f})`}>
@@ -343,30 +327,12 @@ const PrettyFloorView: React.FC<PrettyFloorViewProps> = ({
                           strokeWidth={0.12}
                         />
                       </g>
-                      {label && (
-                        <g transform={readableLabelTransform(cx, cy, rot)}>
-                          <text
-                            textAnchor="middle"
-                            dominantBaseline="middle"
-                            fontSize={fontSize}
-                            fill="currentColor"
-                            opacity={0.85}
-                          >
-                            {label}
-                          </text>
-                        </g>
-                      )}
                     </g>
                   );
                 }
 
                 // Catalog OR generated custom SVG (data URL) — same styling pipeline
                 if (e.svg) {
-                  const fontSize = adaptiveLabelFontSize(w, h, { ratio: 0.16, min: f * 3, max: a * 0.28 });
-                  const label = truncateLabel(
-                    e.label || '',
-                    maxLabelChars(w, fontSize),
-                  );
                   return (
                     <g key={e.objectId}>
                       <g
@@ -381,28 +347,10 @@ const PrettyFloorView: React.FC<PrettyFloorViewProps> = ({
                           height={h}
                         />
                       </g>
-                      {label && (
-                        <g transform={readableLabelTransform(cx, cy + h * 0.55, rot)}>
-                          <text
-                            textAnchor="middle"
-                            dominantBaseline="hanging"
-                            fontSize={fontSize}
-                            fill="currentColor"
-                            opacity={0.8}
-                          >
-                            {label}
-                          </text>
-                        </g>
-                      )}
                     </g>
                   );
                 }
 
-                const fontSize = adaptiveLabelFontSize(w, h);
-                const label = truncateLabel(
-                  e.label || e.elementType.replace(/_/g, ' '),
-                  maxLabelChars(w, fontSize),
-                );
                 return (
                   <g key={e.objectId}>
                     <rect
@@ -416,19 +364,6 @@ const PrettyFloorView: React.FC<PrettyFloorViewProps> = ({
                       stroke={catStyle.stroke}
                       strokeWidth={f * 0.5}
                     />
-                    {label && (
-                      <g transform={readableLabelTransform(cx, cy, rot)}>
-                        <text
-                          textAnchor="middle"
-                          dominantBaseline="middle"
-                          fontSize={fontSize}
-                          fill="currentColor"
-                          opacity={0.85}
-                        >
-                          {label}
-                        </text>
-                      </g>
-                    )}
                   </g>
                 );
               })}

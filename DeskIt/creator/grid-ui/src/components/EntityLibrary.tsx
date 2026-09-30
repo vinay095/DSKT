@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import type { CatalogCategory, CustomLibraryEntry, LibraryItem } from '../types/geometry';
 import { assetUrl } from '../lib/catalog';
 import { groupCustomByCategory } from '../lib/library';
-import { isSvgDataUrl } from '../lib/categoryStyles';
+import { CUSTOM_ELEMENT_CATEGORIES, isSvgDataUrl } from '../lib/categoryStyles';
 import { FloorObjectRenderer } from './renderers';
 
 interface EntityLibraryProps {
@@ -14,6 +14,8 @@ interface EntityLibraryProps {
   onColorChange?: (id: string, color: string) => void;
 }
 
+type TopSection = 'available' | 'custom' | null;
+
 const EntityLibrary: React.FC<EntityLibraryProps> = ({
   categories,
   customItems,
@@ -22,20 +24,26 @@ const EntityLibrary: React.FC<EntityLibraryProps> = ({
   onDeleteCustom,
   onColorChange,
 }) => {
+  const [openTop, setOpenTop] = useState<TopSection>('available');
   const [openCategory, setOpenCategory] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!openCategory && categories[0]) {
-      setOpenCategory(categories[0].category);
-    }
-  }, [categories, openCategory]);
 
   const customGrouped = groupCustomByCategory(customItems);
   const customCategoryNames = Array.from(customGrouped.keys()).sort();
+  const customTotal = customItems.length;
 
-  const toggle = (key: string) => {
+  const toggleTop = (key: 'available' | 'custom') => {
+    setOpenTop((prev) => (prev === key ? null : key));
+    setOpenCategory(null);
+  };
+
+  const toggleCategory = (key: string) => {
     setOpenCategory((prev) => (prev === key ? null : key));
   };
+
+  const categoryLabel = (id: string) =>
+    CUSTOM_ELEMENT_CATEGORIES.find((c) => c.id === id)?.label ??
+    categories.find((c) => c.category === id)?.label ??
+    id.replace(/_/g, ' ');
 
   const renderType = (item: LibraryItem) => {
     const dataPreview = isSvgDataUrl(item.svg) ? item.svg : undefined;
@@ -142,90 +150,96 @@ const EntityLibrary: React.FC<EntityLibraryProps> = ({
   return (
     <aside className="side-panel left-panel" aria-label="Entity library">
       <div className="panel-header">Library</div>
-      <p className="panel-hint">Open a category, pick a type, then click the canvas.</p>
-      <p className="panel-hint">
-        To map irregular floors: select cells, then use <strong>Mark unusable</strong> in the
-        floating cell menu.
-      </p>
-
-      {categories.map((cat) => {
-        const open = openCategory === cat.category;
-        return (
-          <div key={cat.category} className="library-accordion">
-            <button
-              type="button"
-              className={`library-accordion-head ${open ? 'open' : ''}`}
-              onClick={() => toggle(cat.category)}
-              aria-expanded={open}
-            >
-              <span>{cat.label}</span>
-              <span className="library-accordion-count">{cat.types.length}</span>
-            </button>
-            {open && (
-              <div className="library-list">
-                {cat.types.map((t) =>
-                  renderType({
-                    id: `${cat.category}:${t.elementType}`,
-                    category: cat.category,
-                    elementType: t.elementType,
-                    label: t.label,
-                    widthCells: t.widthCells,
-                    heightCells: t.heightCells,
-                    color: t.color,
-                    svg: t.svg,
-                    defaultFontSize: cat.category === 'text' ? 0.6 : undefined,
-                  }),
-                )}
-              </div>
-            )}
-          </div>
-        );
-      })}
 
       <div className="library-accordion">
         <button
           type="button"
-          className={`library-accordion-head ${openCategory === 'custom' ? 'open' : ''}`}
-          onClick={() => toggle('custom')}
-          aria-expanded={openCategory === 'custom'}
+          className={`library-accordion-head ${openTop === 'available' ? 'open' : ''}`}
+          onClick={() => toggleTop('available')}
+          aria-expanded={openTop === 'available'}
         >
-          <span>Custom</span>
+          <span>Available</span>
           <span className="library-accordion-count">
-            {customGrouped.get('custom')?.length ?? 0}
+            {categories.reduce((n, c) => n + c.types.length, 0)}
           </span>
         </button>
-        {openCategory === 'custom' && (
-          <div className="library-list">
-            {(customGrouped.get('custom') ?? []).map(renderType)}
-            {(customGrouped.get('custom')?.length ?? 0) === 0 && (
-              <p className="panel-hint">
-                Mark cells as a polygon to add shapes. Saved customs stay available across drafts.
-              </p>
-            )}
+        {openTop === 'available' && (
+          <div className="library-nested">
+            {categories.map((cat) => {
+              const open = openCategory === `avail:${cat.category}`;
+              return (
+                <div key={cat.category} className="library-accordion">
+                  <button
+                    type="button"
+                    className={`library-accordion-head nested ${open ? 'open' : ''}`}
+                    onClick={() => toggleCategory(`avail:${cat.category}`)}
+                    aria-expanded={open}
+                  >
+                    <span>{cat.label}</span>
+                    <span className="library-accordion-count">{cat.types.length}</span>
+                  </button>
+                  {open && (
+                    <div className="library-list">
+                      {cat.types.map((t) =>
+                        renderType({
+                          id: `${cat.category}:${t.elementType}`,
+                          category: cat.category,
+                          elementType: t.elementType,
+                          label: t.label,
+                          widthCells: t.widthCells,
+                          heightCells: t.heightCells,
+                          color: t.color,
+                          svg: t.svg,
+                          defaultFontSize: cat.category === 'text' ? 0.6 : undefined,
+                        }),
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
 
-      {customCategoryNames
-        .filter((name) => name !== 'custom')
-        .map((name) => {
-          const open = openCategory === name;
-          const items = customGrouped.get(name) ?? [];
-          return (
-            <div key={name} className="library-accordion">
-              <button
-                type="button"
-                className={`library-accordion-head ${open ? 'open' : ''}`}
-                onClick={() => toggle(name)}
-                aria-expanded={open}
-              >
-                <span>{name}</span>
-                <span className="library-accordion-count">{items.length}</span>
-              </button>
-              {open && <div className="library-list">{items.map(renderType)}</div>}
-            </div>
-          );
-        })}
+      <div className="library-accordion">
+        <button
+          type="button"
+          className={`library-accordion-head ${openTop === 'custom' ? 'open' : ''}`}
+          onClick={() => toggleTop('custom')}
+          aria-expanded={openTop === 'custom'}
+        >
+          <span>Custom</span>
+          <span className="library-accordion-count">{customTotal}</span>
+        </button>
+        {openTop === 'custom' && (
+          <div className="library-nested">
+            {customTotal === 0 && (
+              <p className="panel-hint">
+                No custom elements yet. Mark cells as a polygon to create one.
+              </p>
+            )}
+            {customCategoryNames.map((name) => {
+              const open = openCategory === `custom:${name}`;
+              const items = customGrouped.get(name) ?? [];
+              return (
+                <div key={name} className="library-accordion">
+                  <button
+                    type="button"
+                    className={`library-accordion-head nested ${open ? 'open' : ''}`}
+                    onClick={() => toggleCategory(`custom:${name}`)}
+                    aria-expanded={open}
+                  >
+                    <span>{categoryLabel(name)}</span>
+                    <span className="library-accordion-count">{items.length}</span>
+                  </button>
+                  {open && <div className="library-list">{items.map(renderType)}</div>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </aside>
   );
 };
