@@ -72,7 +72,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onExportSvg,
   onExportPdf,
   onOpenPreview,
-  onImportFloorImage,
+//  onImportFloorImage,
 }) => {
   const [draftOpen, setDraftOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
